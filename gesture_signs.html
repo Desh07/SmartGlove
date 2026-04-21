@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gesture Sign Detection — Left Hand</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bgA: #0a0e1a;
+      --bgB: #101829;
+      --card: rgba(16, 24, 48, 0.92);
+      --card-border: rgba(70, 110, 200, 0.18);
+      --ink: #e2e8f4;
+      --muted: #6b7fa0;
+      --accent: #4a7cff;
+      --bend-color: #ff8c42;
+      --open-color: #22c997;
+      --neutral-color: #a78bfa;
+      --danger: #ff4d6a;
+      --surface: rgba(30, 46, 80, 0.5);
+      --glass: rgba(255,255,255,0.03);
+      --radius: 16px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Outfit', 'Segoe UI', system-ui, sans-serif;
+      color: var(--ink);
+      min-height: 100vh;
+      background:
+        radial-gradient(ellipse at 15% 10%, rgba(74,124,255,0.1) 0%, transparent 50%),
+        radial-gradient(ellipse at 85% 90%, rgba(167,139,250,0.08) 0%, transparent 50%),
+        radial-gradient(ellipse at 50% 50%, rgba(255,140,66,0.04) 0%, transparent 60%),
+        linear-gradient(160deg, var(--bgA), var(--bgB));
+      padding: 20px;
+    }
+
+    .app { max-width: 1100px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+
+    .panel {
+      background: var(--card); border: 1px solid var(--card-border);
+      border-radius: var(--radius); padding: 18px 22px;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.35); backdrop-filter: blur(14px);
+    }
+
+    h1 {
+      font-size: 1.5rem; font-weight: 800;
+      background: linear-gradient(135deg, #fff, #a8c4ff, #c4b5fd);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    h2 { font-size: 1rem; font-weight: 700; color: #cdd8ee; margin-bottom: 10px; }
+    .sub { margin: 4px 0 0; color: var(--muted); font-size: 0.88rem; line-height: 1.4; }
+
+    .controls {
+      margin-top: 14px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+    }
+
+    button, select {
+      border: 1px solid var(--card-border); background: var(--surface);
+      color: var(--ink); border-radius: 10px; padding: 9px 16px;
+      font-size: 0.88rem; font-family: inherit; transition: all 0.2s;
+      cursor: pointer; font-weight: 600; letter-spacing: 0.3px;
+    }
+    button:hover { background: rgba(74,124,255,0.2); border-color: var(--accent); }
+    button:active { transform: scale(0.97); }
+
+    .btn-connect { background: linear-gradient(135deg, #4a7cff, #3362df); border: none; color: #fff; }
+    .btn-connect:hover { background: linear-gradient(135deg, #5a8cff, #4372ef); }
+    .btn-load { background: linear-gradient(135deg, #8b5cf6, #7c3aed); border: none; color: #fff; cursor: pointer; }
+    .btn-load:hover { filter: brightness(1.1); }
+
+    .status-bar {
+      display: flex; flex-wrap: wrap; gap: 16px; align-items: center;
+      margin-top: 10px; font-size: 0.85rem; color: var(--muted);
+    }
+    .status-dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      display: inline-block; margin-right: 6px; vertical-align: middle;
+    }
+    .dot-on { background: var(--open-color); box-shadow: 0 0 8px rgba(34,201,151,0.5); }
+    .dot-off { background: var(--danger); }
+
+    /* ───── GESTURE RESULT ───── */
+    .gesture-result-panel {
+      text-align: center; padding: 40px 20px;
+      background:
+        radial-gradient(ellipse at 50% 40%, rgba(74,124,255,0.06) 0%, transparent 60%),
+        var(--card);
+      border: 1px solid var(--card-border);
+      position: relative; overflow: hidden;
+    }
+    .gesture-result-panel::before {
+      content: ''; position: absolute; inset: 0;
+      background: radial-gradient(circle at 50% 0%, rgba(255,255,255,0.02), transparent 60%);
+      pointer-events: none;
+    }
+
+    .gesture-icon {
+      font-size: 5rem; margin-bottom: 8px;
+      filter: drop-shadow(0 4px 20px rgba(0,0,0,0.3));
+      transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .gesture-active .gesture-icon {
+      animation: gestureIconPop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .gesture-word {
+      font-size: 4rem; font-weight: 900; letter-spacing: 6px;
+      text-transform: uppercase;
+      background: linear-gradient(135deg, #6b7fa0, #4a5568);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      transition: all 0.4s ease;
+      line-height: 1.1;
+    }
+    .gesture-active .gesture-word {
+      background: linear-gradient(135deg, #fff, #a8c4ff, #c4b5fd);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      animation: gestureWordIn 0.4s ease;
+    }
+
+    .gesture-sub {
+      font-size: 0.95rem; color: var(--muted); margin-top: 8px;
+      transition: color 0.3s;
+    }
+    .gesture-active .gesture-sub { color: var(--accent); }
+
+    @keyframes gestureIconPop {
+      0% { transform: scale(0.7) rotate(-10deg); opacity: 0.5; }
+      60% { transform: scale(1.15) rotate(3deg); }
+      100% { transform: scale(1) rotate(0); opacity: 1; }
+    }
+    @keyframes gestureWordIn {
+      0% { opacity: 0; transform: translateY(12px) scale(0.9); }
+      100% { opacity: 1; transform: none; }
+    }
+
+    /* Ripple effect on gesture match */
+    .gesture-ripple {
+      position: absolute; border-radius: 50%;
+      background: radial-gradient(circle, rgba(74,124,255,0.15), transparent 70%);
+      width: 400px; height: 400px;
+      left: 50%; top: 50%; transform: translate(-50%, -50%) scale(0);
+      animation: rippleOut 0.8s ease-out forwards;
+      pointer-events: none;
+    }
+    @keyframes rippleOut {
+      0% { transform: translate(-50%, -50%) scale(0); opacity: 1; }
+      100% { transform: translate(-50%, -50%) scale(2.5); opacity: 0; }
+    }
+
+    /* ───── FINGER CARDS ───── */
+    .hand-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 12px;
+    }
+    @media (max-width: 700px) {
+      .hand-grid { grid-template-columns: repeat(3, 1fr); }
+    }
+
+    .finger-card {
+      background: var(--glass); border: 2px solid var(--card-border);
+      border-radius: 14px; padding: 14px 10px; text-align: center;
+      transition: all 0.3s ease; position: relative; overflow: hidden;
+    }
+    .finger-card::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0;
+      height: 4px; border-radius: 14px 14px 0 0; transition: background 0.3s;
+      background: var(--muted);
+    }
+    .finger-card.is-bent {
+      border-color: rgba(255,140,66,0.45); background: rgba(255,140,66,0.07);
+      box-shadow: 0 0 20px rgba(255,140,66,0.12);
+    }
+    .finger-card.is-bent::before { background: var(--bend-color); }
+
+    .finger-card.is-open {
+      border-color: rgba(34,201,151,0.35); background: rgba(34,201,151,0.05);
+    }
+    .finger-card.is-open::before { background: var(--open-color); }
+
+    .finger-card.is-waiting { opacity: 0.5; }
+
+    .fc-icon { font-size: 2rem; margin-bottom: 4px; transition: transform 0.3s; }
+    .finger-card.is-bent .fc-icon { transform: rotate(-25deg) scale(1.1); }
+
+    .fc-name { font-size: 0.95rem; font-weight: 700; margin-bottom: 2px; }
+    .fc-gpio { font-size: 0.72rem; color: var(--muted); margin-bottom: 6px; }
+    .fc-state {
+      display: inline-block; padding: 3px 12px; border-radius: 16px;
+      font-size: 0.78rem; font-weight: 700; letter-spacing: 0.8px;
+      text-transform: uppercase; transition: all 0.25s;
+    }
+    .state-bent { background: rgba(255,140,66,0.18); color: var(--bend-color); border: 1px solid rgba(255,140,66,0.35); }
+    .state-open { background: rgba(34,201,151,0.13); color: var(--open-color); border: 1px solid rgba(34,201,151,0.3); }
+    .state-waiting { background: rgba(60,80,120,0.2); color: var(--muted); border: 1px solid var(--card-border); }
+
+    .fc-pct {
+      font-size: 1.1rem; font-weight: 800; margin-top: 6px;
+      font-variant-numeric: tabular-nums; color: var(--muted);
+    }
+    .fc-pct.pct-up { color: var(--bend-color); }
+    .fc-pct.pct-down { color: var(--open-color); }
+
+    .fc-live { font-size: 0.72rem; color: var(--muted); margin-top: 2px; font-variant-numeric: tabular-nums; }
+
+
+
+    /* Threshold info */
+    .thresh-info {
+      display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; font-size: 0.8rem;
+    }
+    .thresh-chip {
+      background: rgba(0,0,0,0.2); border: 1px solid var(--card-border);
+      border-radius: 8px; padding: 4px 10px; color: var(--muted);
+    }
+    .thresh-chip strong { color: var(--ink); }
+
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(74,124,255,0.3); border-radius: 3px; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- Header -->
+    <div class="panel">
+      <h1>🫲 Left Hand Gesture Signs</h1>
+      <p class="sub">Load your pct_cal config → Connect serial → Perform gestures with your left hand to see detected signs.</p>
+
+      <div class="controls">
+        <label class="btn-load" style="display:inline-flex;align-items:center;gap:6px;">
+          📂 Load pct_cal Config
+          <input type="file" id="loadCfg" accept=".json" style="display:none" />
+        </label>
+        <button id="connectBtn" class="btn-connect" type="button">🔌 Connect Serial</button>
+        <button id="disconnectBtn" type="button">Disconnect</button>
+      </div>
+
+      <div class="status-bar">
+        <span id="connStatus"><span class="status-dot dot-off"></span> Disconnected</span>
+        <span id="sampleRate">—</span>
+        <span id="calInfo" style="color:var(--muted);">No calibration loaded</span>
+      </div>
+
+      <div class="thresh-info" id="threshInfo" style="display:none;"></div>
+    </div>
+
+    <!-- Gesture Result -->
+    <div class="panel gesture-result-panel" id="gesturePanel">
+      <div class="gesture-icon" id="gestureIcon">🖐️</div>
+      <div class="gesture-word" id="gestureWord">WAITING</div>
+      <div class="gesture-sub" id="gestureSub">Load config and connect serial to begin</div>
+    </div>
+
+    <!-- Left Hand Finger Cards -->
+    <div class="panel" id="handsPanel" style="display:none;">
+      <h2>🫲 Left Hand — Live Finger States</h2>
+      <div class="hand-grid" id="handGrid"></div>
+    </div>
+
+
+  </div>
+
+  <script>
+    /* ============================================================
+       CONFIG & CONSTANTS
+    ============================================================ */
+    // Left hand GPIO pin mapping
+    const LEFT_PINS = {
+      33: 'L.Thumb',
+      25: 'L.Index',
+      26: 'L.Middle',
+      27: 'L.Ring',
+      14: 'L.Pinky'
+    };
+    const LEFT_PIN_ORDER = [33, 25, 26, 27, 14];
+    const FINGER_ICONS = { 'Thumb': '👍', 'Index': '☝️', 'Middle': '🖕', 'Ring': '💍', 'Pinky': '🤙' };
+
+    // Gesture definitions: true = bent, false = open
+    // Order: [L.Thumb, L.Index, L.Middle, L.Ring, L.Pinky]
+    const GESTURES = [
+      { name: 'GOOD',  icon: '👍', pattern: { 33: false, 25: true,  26: true,  27: true,  14: true  } },
+      { name: 'BYE',   icon: '👋', pattern: { 33: true,  25: false, 26: false, 27: false, 14: false } },
+      { name: 'MILK',  icon: '🥛', pattern: { 33: true,  25: true,  26: true,  27: true,  14: true  } },
+      { name: 'OK',    icon: '👌', pattern: { 33: true,  25: true,  26: false, 27: false, 14: false } },
+    ];
+
+    const HOLD_DURATION_MS = 400; // How long a gesture must be held to register
+
+    /* ============================================================
+       STATE
+    ============================================================ */
+    const state = {
+      port: null, reader: null, lineBuffer: '', connected: false,
+      pins: [],
+      fingerNames: {},
+      perFingerThresholds: {},
+      bendThreshold: 3.5,    // global fallback
+      releaseThreshold: 2.6,
+      smoothWindow: 10,
+      // Per-pin detection
+      buffers: {},
+      rollingAvg: {},
+      baseline: {},
+      baselineCount: {},
+      bendPeak: {},
+      currentPct: {},
+      currentState: {},    // 'waiting' | 'stable' | 'bending' | 'releasing'
+      // Gesture detection
+      detectedGesture: null,
+      gestureStartTime: null,
+      confirmedGesture: null,
+      // Rate
+      sampleCount: 0, lastRateTime: Date.now(), currentRate: 0
+    };
+
+    const $ = id => document.getElementById(id);
+
+    function fmt(v) { return v == null || !Number.isFinite(v) ? '—' : v.toFixed(1); }
+
+    function getIcon(name) {
+      for (const [k, v] of Object.entries(FINGER_ICONS))
+        if (name.toLowerCase().includes(k.toLowerCase())) return v;
+      return '🖐️';
+    }
+
+    function setConnStatus(t, ok) {
+      state.connected = ok;
+      $('connStatus').innerHTML = `<span class="status-dot ${ok?'dot-on':'dot-off'}"></span> ${t}`;
+    }
+
+    /* ============================================================
+       PERCENTAGE-BASED DETECTION (from gesture_test.html)
+    ============================================================ */
+    function updateRollingAvg(pin, value) {
+      const buf = state.buffers[pin] || (state.buffers[pin] = []);
+      buf.push(value);
+      while (buf.length > state.smoothWindow) buf.shift();
+      const avg = buf.reduce((a, b) => a + b, 0) / buf.length;
+      state.rollingAvg[pin] = avg;
+      return avg;
+    }
+
+    function updateBaseline(pin, value) {
+      if (state.baseline[pin] == null) {
+        state.baseline[pin] = value;
+        state.baselineCount[pin] = 1;
+        return;
+      }
+      state.baselineCount[pin] = (state.baselineCount[pin] || 0) + 1;
+      const s = state.currentState[pin];
+      if (!s || s === 'stable' || s === 'waiting') {
+        const alpha = 0.03;
+        state.baseline[pin] = state.baseline[pin] * (1 - alpha) + value * alpha;
+      }
+    }
+
+    function classify(pin, value) {
+      const base = state.baseline[pin];
+      if (base == null || base === 0 || (state.baselineCount[pin] || 0) < 15) return 'waiting';
+
+      const pctFromBase = ((value - base) / base) * 100;
+      state.currentPct[pin] = pctFromBase;
+
+      const pft = state.perFingerThresholds[pin];
+      const bendTh = pft ? pft.bendPct : state.bendThreshold;
+      const relTh = pft ? pft.releasePct : state.releaseThreshold;
+
+      const prev = state.currentState[pin] || 'waiting';
+
+      if (prev === 'bending') {
+        if (!state.bendPeak[pin] || value > state.bendPeak[pin])
+          state.bendPeak[pin] = value;
+        const peak = state.bendPeak[pin];
+        const dropPct = ((peak - value) / peak) * 100;
+        if (dropPct >= relTh) return 'releasing';
+        if (pctFromBase >= bendTh * 0.4) return 'bending';
+        state.bendPeak[pin] = null;
+        return 'stable';
+      }
+
+      if (prev === 'releasing') {
+        if (Math.abs(pctFromBase) < bendTh * 0.5) {
+          state.bendPeak[pin] = null;
+          return 'stable';
+        }
+        if (pctFromBase >= bendTh) {
+          state.bendPeak[pin] = value;
+          return 'bending';
+        }
+        return 'releasing';
+      }
+
+      if (pctFromBase >= bendTh) {
+        state.bendPeak[pin] = value;
+        return 'bending';
+      }
+
+      return 'stable';
+    }
+
+    /* ============================================================
+       FINGER CARD UI
+    ============================================================ */
+    function buildFingerCards() {
+      const grid = $('handGrid');
+      grid.innerHTML = '';
+
+      LEFT_PIN_ORDER.forEach(pin => {
+        const name = LEFT_PINS[pin];
+        const icon = getIcon(name);
+
+        const card = document.createElement('div');
+        card.className = 'finger-card is-waiting';
+        card.id = `fcard-${pin}`;
+        card.innerHTML = `
+          <div class="fc-icon">${icon}</div>
+          <div class="fc-name">${name}</div>
+          <div class="fc-gpio">GPIO ${pin}</div>
+          <div class="fc-state state-waiting" id="fstate-${pin}">WAITING</div>
+          <div class="fc-pct" id="fpct-${pin}">0.0%</div>
+          <div class="fc-live" id="flive-${pin}">— Ω</div>
+        `;
+        grid.appendChild(card);
+      });
+
+      $('handsPanel').style.display = '';
+    }
+
+    function updateFingerUI(pin) {
+      const s = state.currentState[pin] || 'waiting';
+      const pct = state.currentPct[pin] || 0;
+      const isBent = (s === 'bending');
+      const isOpen = (s === 'stable' || s === 'releasing');
+      const isWaiting = (s === 'waiting');
+
+      const card = $(`fcard-${pin}`);
+      if (card) {
+        card.className = `finger-card ${isWaiting ? 'is-waiting' : isBent ? 'is-bent' : 'is-open'}`;
+      }
+
+      const badge = $(`fstate-${pin}`);
+      if (badge) {
+        badge.textContent = isBent ? 'BENT' : isWaiting ? 'WAITING' : 'OPEN';
+        badge.className = `fc-state ${isBent ? 'state-bent' : isWaiting ? 'state-waiting' : 'state-open'}`;
+      }
+
+      const fp = $(`fpct-${pin}`);
+      if (fp) {
+        const sign = pct >= 0 ? '+' : '';
+        fp.textContent = `${sign}${pct.toFixed(1)}%`;
+        fp.className = `fc-pct ${pct > 0 ? 'pct-up' : pct < 0 ? 'pct-down' : ''}`;
+      }
+
+      const fl = $(`flive-${pin}`);
+      if (fl) {
+        const base = state.baseline[pin];
+        fl.textContent = `Base: ${fmt(base)} Ω`;
+      }
+    }
+
+    /* ============================================================
+       GESTURE MATCHING
+    ============================================================ */
+    function isBent(pin) {
+      return state.currentState[pin] === 'bending';
+    }
+
+    function matchGesture() {
+      // Need all left-hand pins to have non-waiting state
+      const allReady = LEFT_PIN_ORDER.every(p => {
+        const s = state.currentState[p];
+        return s && s !== 'waiting';
+      });
+      if (!allReady) return null;
+
+      for (const g of GESTURES) {
+        let match = true;
+        for (const pin of LEFT_PIN_ORDER) {
+          const expectedBent = g.pattern[pin];
+          const actualBent = isBent(pin);
+          if (expectedBent !== actualBent) { match = false; break; }
+        }
+        if (match) return g;
+      }
+      return null;
+    }
+
+    let lastGestureUpdate = 0;
+    function updateGestureDisplay() {
+      const now = Date.now();
+      if (now - lastGestureUpdate < 50) return; // throttle
+      lastGestureUpdate = now;
+
+      const matched = matchGesture();
+
+      // Check hold duration
+      if (matched) {
+        if (!state.detectedGesture || state.detectedGesture.name !== matched.name) {
+          state.detectedGesture = matched;
+          state.gestureStartTime = now;
+        }
+
+        if (now - state.gestureStartTime >= HOLD_DURATION_MS) {
+          if (!state.confirmedGesture || state.confirmedGesture.name !== matched.name) {
+            state.confirmedGesture = matched;
+            showGesture(matched);
+          }
+        }
+      } else {
+        state.detectedGesture = null;
+        state.gestureStartTime = null;
+        if (state.confirmedGesture) {
+          state.confirmedGesture = null;
+          clearGesture();
+        }
+      }
+
+    }
+
+    /* ============================================================
+       TEXT-TO-SPEECH
+    ============================================================ */
+    function speakWord(word) {
+      if (!('speechSynthesis' in window)) return;
+      // Cancel any ongoing speech to avoid overlap
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(word);
+      utterance.rate = 0.9;
+      utterance.pitch = 1;
+      utterance.volume = 1;
+      window.speechSynthesis.speak(utterance);
+    }
+
+    function showGesture(g) {
+      const panel = $('gesturePanel');
+      panel.classList.add('gesture-active');
+      $('gestureIcon').textContent = g.icon;
+      $('gestureWord').textContent = g.name;
+      $('gestureSub').textContent = 'Gesture detected!';
+
+      // Speak the gesture word aloud
+      speakWord(g.name);
+
+      // Trigger ripple
+      const ripple = document.createElement('div');
+      ripple.className = 'gesture-ripple';
+      panel.appendChild(ripple);
+      setTimeout(() => ripple.remove(), 900);
+    }
+
+    function clearGesture() {
+      const panel = $('gesturePanel');
+      panel.classList.remove('gesture-active');
+      $('gestureIcon').textContent = '🖐️';
+      $('gestureWord').textContent = 'NO GESTURE';
+      $('gestureSub').textContent = 'Perform a gesture with your left hand';
+    }
+
+    /* ============================================================
+       PROCESS SENSOR DATA
+    ============================================================ */
+    function updateFinger(pin, value) {
+      // Only process left-hand pins
+      if (!LEFT_PINS[pin]) return;
+
+      updateRollingAvg(pin, value);
+      updateBaseline(pin, value);
+      const newState = classify(pin, value);
+      state.currentState[pin] = newState;
+
+      updateFingerUI(pin);
+      updateGestureDisplay();
+    }
+
+    /* ============================================================
+       CSV PARSING + SERIAL (from gesture_test.html)
+    ============================================================ */
+    function parseCsvLine(line) {
+      const clean = line.trim();
+      if (!clean || !clean.startsWith('DATA')) return;
+      const parts = clean.split(',');
+      if (parts.length < 2) return;
+
+      // Header line
+      if (parts[1] && /^[Pp]/.test(parts[1])) {
+        const parsed = parts.slice(1).map(s => Number(s.replace(/[^0-9]/g, ''))).filter(Number.isFinite);
+        if (parsed.length > 0 && JSON.stringify(parsed) !== JSON.stringify(state.pins)) {
+          state.pins = parsed;
+          buildFingerCards();
+        }
+        return;
+      }
+
+      // Data line
+      const values = parts.slice(1).map(s => {
+        const t = s.trim().toLowerCase();
+        if (t === 'nan' || t === '') return null;
+        const n = Number(t);
+        return Number.isFinite(n) ? n : null;
+      });
+
+      // Auto-detect pins if no header
+      if (state.pins.length === 0) {
+        state.pins = Array.from({ length: values.length }, (_, i) => i + 1);
+        buildFingerCards();
+      }
+
+      // Sample rate
+      state.sampleCount++;
+      const now = Date.now();
+      if (now - state.lastRateTime >= 1000) {
+        state.currentRate = Math.round(state.sampleCount * 1000 / (now - state.lastRateTime));
+        state.sampleCount = 0; state.lastRateTime = now;
+        $('sampleRate').textContent = `${state.currentRate} sps`;
+      }
+
+      // Process each sensor
+      const count = Math.min(state.pins.length, values.length);
+      for (let i = 0; i < count; i++) {
+        if (values[i] !== null) updateFinger(state.pins[i], values[i]);
+      }
+    }
+
+    /* ============================================================
+       SERIAL CONNECTION
+    ============================================================ */
+    async function disconnectSerial() {
+      try { if (state.reader) { await state.reader.cancel(); state.reader.releaseLock(); state.reader = null; } } catch(e) {}
+      try { if (state.port) { await state.port.close(); state.port = null; } } catch(e) {}
+      setConnStatus('Disconnected', false);
+    }
+
+    async function connectSerial() {
+      if (!('serial' in navigator)) { alert('Web Serial not supported. Use Chrome or Edge.'); return; }
+      try {
+        state.port = await navigator.serial.requestPort();
+        await state.port.open({ baudRate: 115200 });
+        setConnStatus('Connected', true);
+        $('gestureSub').textContent = 'Warming up sensors…';
+        const dec = new TextDecoderStream();
+        const closed = state.port.readable.pipeTo(dec.writable);
+        state.reader = dec.readable.getReader();
+        while (true) {
+          const { value, done } = await state.reader.read();
+          if (done) break;
+          if (!value) continue;
+          state.lineBuffer += value;
+          const lines = state.lineBuffer.split(/\r?\n/);
+          state.lineBuffer = lines.pop() || '';
+          for (const l of lines) parseCsvLine(l);
+        }
+        await closed;
+      } catch (err) { setConnStatus(`Error: ${err.message}`, false); }
+      finally { await disconnectSerial(); }
+    }
+
+    /* ============================================================
+       LOAD CALIBRATION CONFIG
+    ============================================================ */
+    function loadConfig(data) {
+      // Load global thresholds
+      if (data.bendThreshold != null) state.bendThreshold = data.bendThreshold;
+      if (data.releaseThreshold != null) state.releaseThreshold = data.releaseThreshold;
+      if (data.smoothWindow != null) state.smoothWindow = data.smoothWindow;
+      if (data.fingerNames) state.fingerNames = data.fingerNames;
+
+      // Load per-finger thresholds
+      if (data.perFingerThresholds) {
+        state.perFingerThresholds = {};
+        Object.entries(data.perFingerThresholds).forEach(([pin, cfg]) => {
+          state.perFingerThresholds[pin] = {
+            bendPct: cfg.bendPct,
+            releasePct: cfg.releasePct
+          };
+        });
+      }
+
+      // Show threshold info
+      const infoEl = $('threshInfo');
+      infoEl.innerHTML = '';
+      LEFT_PIN_ORDER.forEach(pin => {
+        const pft = state.perFingerThresholds[pin];
+        const name = LEFT_PINS[pin];
+        if (pft) {
+          const chip = document.createElement('span');
+          chip.className = 'thresh-chip';
+          chip.innerHTML = `<strong>${name}</strong>: bend ${pft.bendPct.toFixed(1)}% / rel ${pft.releasePct.toFixed(1)}%`;
+          infoEl.appendChild(chip);
+        }
+      });
+      infoEl.style.display = 'flex';
+
+      $('calInfo').textContent = `✅ Calibration loaded (${data.exportDate || 'unknown date'})`;
+      $('calInfo').style.color = '#22c997';
+
+      // Rebuild UI if pins available
+      if (state.pins.length > 0) buildFingerCards();
+    }
+
+    /* ============================================================
+       EVENT LISTENERS
+    ============================================================ */
+    $('connectBtn').addEventListener('click', connectSerial);
+    $('disconnectBtn').addEventListener('click', disconnectSerial);
+
+    $('loadCfg').addEventListener('change', e => {
+      if (!e.target.files.length) return;
+      const r = new FileReader();
+      r.onload = ev => {
+        try { loadConfig(JSON.parse(ev.target.result)); }
+        catch (err) { alert(`Parse error: ${err.message}`); }
+      };
+      r.readAsText(e.target.files[0]);
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,814 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HandGlow — Live Sign Reader</title>
+  <meta name="description" content="Real-time sign language recognition using HandGlow glove" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Tamil:wght@400;500;600;700&family=Noto+Sans+Sinhala:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #060a14;
+      --bg-card: rgba(13, 19, 33, 0.9);
+      --bg-glass: rgba(255, 255, 255, 0.03);
+      --border: rgba(255, 255, 255, 0.07);
+      --text: #f1f5f9;
+      --text-sec: #94a3b8;
+      --text-muted: #64748b;
+      --accent: #6366f1;
+      --accent-glow: rgba(99, 102, 241, 0.25);
+      --success: #22c55e;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', 'Noto Sans Tamil', 'Noto Sans Sinhala', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background:
+        radial-gradient(ellipse at 15% 40%, rgba(99,102,241,0.06) 0%, transparent 60%),
+        radial-gradient(ellipse at 85% 60%, rgba(139,92,246,0.04) 0%, transparent 50%);
+      z-index: 0;
+    }
+    .app { position: relative; z-index: 1; max-width: 1200px; margin: 0 auto; padding: 16px 14px 40px; }
+    .card {
+      background: var(--bg-card); backdrop-filter: blur(16px);
+      border: 1px solid var(--border); border-radius: 14px;
+      padding: 14px; margin-bottom: 10px;
+    }
+    .card-label {
+      font-size: 0.7rem; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 1px; color: var(--text-muted); margin-bottom: 10px;
+    }
+    .btn {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 7px 14px; border: 1px solid var(--border); border-radius: 8px;
+      background: var(--bg-glass); color: var(--text);
+      font-family: inherit; font-size: 0.82rem; font-weight: 500;
+      cursor: pointer; transition: all 0.2s;
+    }
+    .btn:hover { background: rgba(255,255,255,0.07); transform: translateY(-1px); }
+    .btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none !important; }
+    .btn-primary { background: linear-gradient(135deg, #6366f1, #4f46e5); border-color: rgba(99,102,241,0.4); color: #fff; }
+    .btn-success { background: linear-gradient(135deg, #22c55e, #16a34a); border-color: rgba(34,197,94,0.4); color: #fff; }
+    select option { background: var(--bg-card); color: var(--text); }
+
+    /* ─── Header bar ─── */
+    .header { text-align: center; margin-bottom: 12px; }
+    .header h1 {
+      font-size: 1.5rem; font-weight: 900;
+      background: linear-gradient(135deg, #a78bfa, #6366f1, #3b82f6);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .header p { color: var(--text-sec); font-size: 0.82rem; margin-top: 2px; }
+
+    /* ─── Connection bar ─── */
+    .conn-bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+    .status-dot {
+      width: 7px; height: 7px; border-radius: 50%; background: var(--danger);
+      display: inline-block; margin-right: 4px; transition: background 0.3s;
+    }
+    .status-dot.ok { background: var(--success); box-shadow: 0 0 6px rgba(34,197,94,0.5); }
+    .conn-text { font-size: 0.82rem; color: var(--text-sec); display: flex; align-items: center; }
+    .badge {
+      font-size: 0.72rem; background: var(--bg-glass); border: 1px solid var(--border);
+      border-radius: 5px; padding: 2px 7px; color: var(--text-muted); font-variant-numeric: tabular-nums;
+    }
+    .badge.ok { color: var(--success); border-color: rgba(34,197,94,0.25); }
+    .badge.warn { color: var(--warning); border-color: rgba(245,158,11,0.25); }
+
+    /* ─── HERO PREDICTION ─── */
+    .hero {
+      text-align: center; padding: 20px 10px;
+      background: linear-gradient(180deg, rgba(99,102,241,0.06) 0%, transparent 100%);
+      border-radius: 14px; margin-bottom: 10px;
+    }
+    .hero-sign {
+      font-size: 3rem; font-weight: 900; letter-spacing: 2px;
+      color: var(--text); text-shadow: 0 0 40px var(--accent-glow);
+      transition: all 0.3s; min-height: 60px; line-height: 1.2;
+      text-transform: capitalize;
+    }
+    .hero-sign.low { opacity: 0.4; }
+    .hero-confidence {
+      font-size: 1rem; font-weight: 600; margin-top: 6px;
+      font-variant-numeric: tabular-nums;
+    }
+    .hero-conf-bar {
+      width: 200px; height: 6px; background: rgba(255,255,255,0.06);
+      border-radius: 3px; margin: 6px auto 0; overflow: hidden;
+    }
+    .hero-conf-fill {
+      height: 100%; border-radius: 3px; transition: width 0.15s, background 0.3s;
+      background: var(--accent);
+    }
+    .hero-orient { font-size: 0.82rem; color: var(--text-muted); margin-top: 6px; }
+    .hero-hold-indicator {
+      margin-top: 8px; font-size: 0.78rem; color: var(--text-muted);
+    }
+    .hero-hold-ring {
+      display: inline-block; width: 28px; height: 28px; border-radius: 50%;
+      border: 3px solid rgba(255,255,255,0.08); border-top-color: var(--accent);
+      vertical-align: middle; margin-right: 6px;
+      transition: border-top-color 0.2s;
+    }
+    .hero-hold-ring.filling {
+      animation: holdSpin 0.8s linear infinite;
+    }
+    @keyframes holdSpin {
+      to { transform: rotate(360deg); }
+    }
+    .hero-hold-ring.done { border-color: var(--success); animation: none; }
+
+    /* ─── Two-column layout ─── */
+    .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+    /* ─── Hand panels ─── */
+    .hand-title {
+      font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.8px;
+      color: var(--text-muted); margin-bottom: 6px;
+    }
+    .finger-row {
+      display: flex; align-items: center; gap: 6px; padding: 2px 0;
+      font-size: 0.78rem;
+    }
+    .f-name { width: 58px; color: var(--text-sec); }
+    .f-bar { flex: 1; height: 7px; background: rgba(255,255,255,0.05); border-radius: 4px; overflow: hidden; }
+    .f-bar-fill { height: 100%; border-radius: 4px; transition: width 0.1s; background: linear-gradient(90deg, #6366f1, #818cf8); }
+    .f-val { width: 36px; text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; font-size: 0.76rem; }
+
+    .imu-mini { margin-top: 6px; padding: 6px; background: var(--bg-glass); border: 1px solid var(--border); border-radius: 7px; }
+    .imu-mini-row { display: flex; gap: 8px; font-size: 0.72rem; font-variant-numeric: tabular-nums; }
+    .imu-mini-row span { color: var(--text-muted); }
+    .imu-mini-row strong { color: var(--text); }
+
+    /* ─── Sentence ─── */
+    .sentence-box {
+      min-height: 44px; padding: 10px 14px;
+      background: var(--bg-glass); border: 1px solid var(--border);
+      border-radius: 10px; font-size: 1.1rem; font-weight: 500;
+      letter-spacing: 0.5px; color: var(--text);
+      word-wrap: break-word; line-height: 1.8;
+    }
+    .sentence-box .word {
+      display: inline-block; padding: 2px 8px; margin: 2px 3px;
+      background: rgba(99,102,241,0.1); border: 1px solid rgba(99,102,241,0.2);
+      border-radius: 6px; font-size: 0.95rem;
+    }
+    .sentence-box .cursor {
+      display: inline-block; width: 2px; height: 1.2em; background: var(--accent);
+      animation: blink 1s ease-in-out infinite; vertical-align: text-bottom;
+    }
+    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+    /* ─── Top predictions ─── */
+    .pred-row {
+      display: flex; align-items: center; gap: 6px; padding: 2px 0; font-size: 0.78rem;
+    }
+    .pred-label { min-width: 28px; font-weight: 700; color: var(--text); text-align: left; font-size: 0.72rem; text-transform: capitalize; }
+    .pred-bar { flex: 1; height: 6px; background: rgba(255,255,255,0.04); border-radius: 3px; overflow: hidden; }
+    .pred-bar-fill { height: 100%; border-radius: 3px; transition: width 0.15s; background: var(--accent); }
+    .pred-pct { width: 42px; text-align: right; font-variant-numeric: tabular-nums; color: var(--text-sec); font-size: 0.72rem; }
+
+    .hidden { display: none !important; }
+
+    @media (max-width: 640px) {
+      .cols { grid-template-columns: 1fr; }
+      .hero-sign { font-size: 3.5rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="header">
+      <h1>🤟 HandGlow — Live Sign Reader</h1>
+      <p>Real-time sign language recognition</p>
+    </div>
+
+    <!-- Connection + Load -->
+    <div class="card">
+      <div class="conn-bar">
+        <button id="connectBtn" class="btn btn-primary">🔌 Connect</button>
+        <button id="disconnectBtn" class="btn" disabled>Disconnect</button>
+        <button id="loadCalBtn" class="btn">📂 Calibration</button>
+        <input type="file" id="calInput" accept=".json" class="hidden" />
+        <select id="handMode" style="padding:6px 10px;border:1px solid rgba(255,255,255,0.07);border-radius:8px;background:rgba(255,255,255,0.03);color:#f1f5f9;font-family:inherit;font-size:.82rem">
+          <option value="right">🖐 Right Hand</option>
+          <option value="left">🤚 Left Hand</option>
+          <option value="both">🙌 Both Hands</option>
+        </select>
+        <select id="langMode" style="padding:6px 10px;border:1px solid rgba(255,255,255,0.07);border-radius:8px;background:rgba(255,255,255,0.03);color:#f1f5f9;font-family:inherit;font-size:.82rem;margin-left:auto">
+          <option value="en">🌐 English</option>
+          <option value="si">🇱🇰 සිංහල</option>
+          <option value="ta">🕉️ தமிழ்</option>
+        </select>
+        <button id="loadModelBtn" class="btn">🧠 Load Model</button>
+        <input type="file" id="modelInput" accept=".json" class="hidden" />
+        <span class="conn-text"><span id="statusDot" class="status-dot"></span><span id="connText">Disconnected</span></span>
+        <span id="spsBadge" class="badge hidden">0 sps</span>
+        <span id="calBadge" class="badge warn">⚠ No cal</span>
+        <span id="modelBadge" class="badge warn">⚠ No model</span>
+        <span id="voiceBadge" class="badge hidden"></span>
+        <span id="handBadge" class="badge" style="display:none"></span>
+      </div>
+      <div style="font-size:.7rem;color:var(--text-muted);margin-top:6px">
+        Select which hand you'll sign with, then load the matching model from <code>tfjs_model/right/</code>, <code>tfjs_model/left/</code>, or <code>tfjs_model/</code>
+      </div>
+    </div>
+
+    <!-- Hero prediction -->
+    <div class="hero" id="heroCard">
+      <div class="hero-sign low" id="heroSign">—</div>
+      <div class="hero-confidence" id="heroConf" style="color:var(--text-muted)">Waiting for model...</div>
+      <div class="hero-conf-bar"><div class="hero-conf-fill" id="heroConfBar" style="width:0%"></div></div>
+      <div class="hero-orient" id="heroOrient"></div>
+      <div class="hero-hold-indicator" id="heroHold">
+        <span class="hero-hold-ring" id="holdRing"></span>
+        <span id="holdText">Hold steady to register</span>
+      </div>
+    </div>
+
+    <!-- Hands + Predictions -->
+    <div class="cols">
+      <div class="card">
+        <div class="hand-title">🖐️ Right Hand</div>
+        <div id="rightFingers"></div>
+        <div class="imu-mini">
+          <div class="imu-mini-row"><span>Accel</span> <strong id="ra">—</strong></div>
+          <div class="imu-mini-row"><span>Gyro</span> <strong id="rg">—</strong></div>
+          <div class="imu-mini-row"><span>Orient</span> <strong id="ro" style="color:var(--accent)">—</strong></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="hand-title">🤚 Left Hand</div>
+        <div id="leftFingers"></div>
+        <div class="imu-mini">
+          <div class="imu-mini-row"><span>Accel</span> <strong id="la">—</strong></div>
+          <div class="imu-mini-row"><span>Gyro</span> <strong id="lg">—</strong></div>
+          <div class="imu-mini-row"><span>Orient</span> <strong id="lo" style="color:var(--accent)">—</strong></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sentence builder -->
+    <div class="card">
+      <div class="card-label">📝 Sentence</div>
+      <div class="sentence-box" id="sentenceBox"><span class="cursor"></span></div>
+      <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
+        <button id="speakBtn" class="btn btn-success" disabled>🔊 Speak</button>
+        <button id="spaceBtn" class="btn">␣ Space</button>
+        <button id="backBtn" class="btn">⌫ Back</button>
+        <button id="clearSentBtn" class="btn">🗑️ Clear</button>
+      </div>
+    </div>
+
+    <!-- Top 5 predictions -->
+    <div class="card">
+      <div class="card-label">📊 Top Predictions</div>
+      <div id="topPreds"></div>
+    </div>
+  </div>
+
+  <script>
+    // ─── CONFIG ───
+    const FINGERS = [
+      { label: 'RT', name: 'R.Thumb', hand: 'right' },
+      { label: 'RI', name: 'R.Index', hand: 'right' },
+      { label: 'RM', name: 'R.Mid',   hand: 'right' },
+      { label: 'RR', name: 'R.Ring',  hand: 'right' },
+      { label: 'RP', name: 'R.Pink',  hand: 'right' },
+      { label: 'LT', name: 'L.Thumb', hand: 'left' },
+      { label: 'LI', name: 'L.Index', hand: 'left' },
+      { label: 'LM', name: 'L.Mid',   hand: 'left' },
+      { label: 'LR', name: 'L.Ring',  hand: 'left' },
+      { label: 'LP', name: 'L.Pink',  hand: 'left' },
+    ];
+    const IMU_CH = ['aX1','aY1','aZ1','gX1','gY1','gZ1','aX2','aY2','aZ2','gX2','gY2','gZ2'];
+    const HOLD_MS = 800;
+    const MIN_CONF = 0.80;
+    const VOICE_LANGS = {
+      en: ['en-US', 'en-GB'],
+      si: ['si-LK', 'si'],
+      ta: ['ta-IN', 'ta-LK', 'ta'],
+    };
+
+    // ─── LOCALIZATION ───
+    const LANG = {
+      'HELLO': { en: 'Hello', si: 'ආයුබෝවන්', ta: 'வணக்கம்' },
+      'GOOD':  { en: 'Good', si: 'හොඳයි', ta: 'நன்று' },
+      'MILK':  { en: 'Milk', si: 'කිරි', ta: 'பால்' },
+      'BAD':   { en: 'Bad', si: 'නරකයි', ta: 'மோசம்' },
+      'LOVE':  { en: 'Love', si: 'ආදරය', ta: 'அன்பு' },
+      'CALL':  { en: 'Call', si: 'ඇමතුමක්', ta: 'அழை' },
+    };
+    function T(sign) {
+      const mode = $('langMode') ? $('langMode').value : 'en';
+      if (LANG[sign] && LANG[sign][mode]) return LANG[sign][mode];
+      return sign;
+    }
+    // Update live text if language changes
+    document.addEventListener('DOMContentLoaded', () => {
+      $('langMode')?.addEventListener('change', () => {
+        if (S.words.length > 0) renderSentence();
+      });
+    });
+
+    // ─── STATE ───
+    const S = {
+      port: null, reader: null, lineBuffer: '', connected: false,
+      cal: null, model: null, meta: null,
+      flex: {}, imu: {},
+      spsCounter: 0,
+      lastSign: '', signStart: 0, words: [],  // array of words
+      voicesReady: false,
+    };
+    const $ = id => document.getElementById(id);
+
+    function loadVoices() {
+      const voices = speechSynthesis.getVoices();
+      if (voices && voices.length) S.voicesReady = true;
+      return voices;
+    }
+
+    function pickVoice(mode) {
+      const voices = loadVoices();
+      const langPrefs = VOICE_LANGS[mode] || VOICE_LANGS.en;
+      const lowerPrefs = langPrefs.map(v => v.toLowerCase());
+
+      let voice = voices.find(v => lowerPrefs.includes((v.lang || '').toLowerCase()));
+      if (!voice) {
+        voice = voices.find(v => {
+          const lang = (v.lang || '').toLowerCase();
+          return lowerPrefs.some(pref => lang.startsWith(pref.split('-')[0]));
+        });
+      }
+      return voice || null;
+    }
+
+    function updateVoiceBadge(mode) {
+      const badge = $('voiceBadge');
+      if (!badge) return;
+      if (mode === 'en') {
+        badge.className = 'badge hidden';
+        badge.textContent = '';
+        return;
+      }
+
+      const voice = pickVoice(mode);
+      if (voice) {
+        badge.className = 'badge ok';
+        badge.textContent = `🔊 ${voice.lang || mode.toUpperCase()} voice`;
+      } else {
+        badge.className = 'badge warn';
+        badge.textContent = mode === 'si'
+          ? '⚠ Sinhala voice missing'
+          : '⚠ Tamil voice missing';
+      }
+    }
+
+    if ('speechSynthesis' in window) {
+      loadVoices();
+      speechSynthesis.onvoiceschanged = loadVoices;
+    }
+
+    $('langMode')?.addEventListener('change', () => updateVoiceBadge($('langMode').value));
+    updateVoiceBadge($('langMode') ? $('langMode').value : 'en');
+
+    // ─── BUILD FINGER UI ───
+    ['right','left'].forEach(hand => {
+      const el = $(hand === 'right' ? 'rightFingers' : 'leftFingers');
+      el.innerHTML = '';
+      FINGERS.filter(f => f.hand === hand).forEach(f => {
+        const r = document.createElement('div');
+        r.className = 'finger-row';
+        r.innerHTML = `<span class="f-name">${f.name}</span><div class="f-bar"><div class="f-bar-fill" id="bar-${f.label}"></div></div><span class="f-val" id="v-${f.label}">—</span>`;
+        el.appendChild(r);
+      });
+    });
+
+    // ─── CALIBRATION ───
+    $('loadCalBtn').addEventListener('click', () => $('calInput').click());
+    $('calInput').addEventListener('change', async e => {
+      const f = e.target.files[0]; if (!f) return;
+      try {
+        S.cal = JSON.parse(await f.text());
+        $('calBadge').textContent = '✅ Cal'; $('calBadge').className = 'badge ok';
+      } catch (err) { alert('Bad calibration JSON: ' + err.message); }
+    });
+
+    // ─── MODEL LOAD (pure JSON) ───
+    $('loadModelBtn').addEventListener('click', () => $('modelInput').click());
+    $('modelInput').addEventListener('change', async e => {
+      const f = e.target.files[0];
+      if (!f) return;
+      try {
+        const data = JSON.parse(await f.text());
+        if (data.format !== 'handglow_mlp_v1') {
+          alert('Unsupported model format. Expected handglow_mlp_v1'); return;
+        }
+        S.model = data;
+        S.meta = {
+          labels: data.labels,
+          normalization: data.normalization,
+          accuracy: data.accuracy,
+          feature_names: data.feature_names,
+        };
+        const acc = data.accuracy ? `${(data.accuracy * 100).toFixed(1)}%` : 'loaded';
+        $('modelBadge').textContent = `🧠 ${acc}`;
+        $('modelBadge').className = 'badge ok';
+        $('heroConf').textContent = `Model ready (${data.labels.length} signs) — show a sign!`;
+        $('heroConf').style.color = 'var(--success)';
+      } catch (err) {
+        alert('Model load error: ' + err.message);
+        console.error(err);
+      }
+    });
+
+    // ─── NORMALIZE ───
+    function normFlex(label, raw) {
+      if (!S.cal || !S.cal.fingers[label]) return raw / 4095;
+      const f = S.cal.fingers[label];
+      const rest = f.restResistance ?? f.rest ?? 0;
+      const bent = f.bentResistance ?? f.bent ?? 0;
+      const range = f.range ?? Math.abs(bent - rest);
+      if (range === 0) return 0;
+      return Math.max(0, Math.min(1, (raw - rest) / (bent - rest)));
+    }
+
+    function correctGyro(ch, raw) {
+      if (!S.cal) return raw;
+      const mpu = ch.endsWith('1') ? 'mpu1' : 'mpu2';
+      const ax = ch.slice(0, 2);
+      const off = S.cal.imu?.[mpu]?.gyroOffset?.[ax] ?? 0;
+      return raw - off;
+    }
+
+    function detectOrient(aX, aY, aZ) {
+      if (isNaN(aX) || isNaN(aY) || isNaN(aZ)) return '—';
+      const a = { x: Math.abs(aX), y: Math.abs(aY), z: Math.abs(aZ) };
+      const d = Math.max(a.x, a.y, a.z);
+      if (d < 0.5) return 'TILTED';
+      if (d === a.y && aY < -0.6) return '🫳 PALM DOWN';
+      if (d === a.y && aY > 0.6)  return '🫴 PALM UP';
+      if (d === a.x && aX > 0.6)  return '🤚 SIDEWAYS';
+      if (d === a.z && aZ > 0.6)  return '✋ FORWARD';
+      if (d === a.z && aZ < -0.6) return '✋ BACKWARD';
+      return 'TILTED';
+    }
+
+    // ─── PURE JS NEURAL NET FORWARD PASS ───
+    function matmul(input, weights, bias) {
+      const nOut = bias.length;
+      const result = new Float32Array(nOut);
+      for (let j = 0; j < nOut; j++) {
+        let sum = bias[j];
+        for (let i = 0; i < input.length; i++) {
+          sum += input[i] * weights[i][j];
+        }
+        result[j] = sum;
+      }
+      return result;
+    }
+
+    function batchNorm(x, bn) {
+      const out = new Float32Array(x.length);
+      for (let i = 0; i < x.length; i++) {
+        out[i] = bn.gamma[i] * (x[i] - bn.mean[i]) / Math.sqrt(bn.var[i] + bn.eps) + bn.beta[i];
+      }
+      return out;
+    }
+
+    function relu(x) { return x.map(v => Math.max(0, v)); }
+
+    function softmax(x) {
+      const max = Math.max(...x);
+      const exp = x.map(v => Math.exp(v - max));
+      const sum = exp.reduce((a, b) => a + b, 0);
+      return exp.map(v => v / sum);
+    }
+
+    function forwardPass(features) {
+      let x = features;
+      for (const layer of S.model.layers) {
+        x = matmul(x, layer.weights, layer.bias);
+        if (layer.bn) x = batchNorm(x, layer.bn);
+        if (layer.activation === 'relu') x = relu(x);
+        else if (layer.activation === 'softmax') x = softmax(x);
+      }
+      return Array.from(x);
+    }
+
+    // ─── INFERENCE ───
+    function predict() {
+      if (!S.model || !S.meta) return null;
+
+      // Build feature dictionary of all sensors
+      const dict = {};
+      FINGERS.forEach(f => {
+        let name = f.name;
+        if (name === 'R.Mid') name = 'R.Middle';
+        if (name === 'R.Pink') name = 'R.Pinky';
+        if (name === 'L.Mid') name = 'L.Middle';
+        if (name === 'L.Pink') name = 'L.Pinky';
+        dict[name] = normFlex(f.label, S.flex[f.label] ?? 0);
+      });
+      ['aX1','aY1','aZ1','aX2','aY2','aZ2'].forEach(c => { dict[c] = S.imu[c] ?? 0; });
+      ['gX1','gY1','gZ1','gX2','gY2','gZ2'].forEach(c => { dict[c] = correctGyro(c, S.imu[c] ?? 0); });
+
+      // Dynamically extract only the features this model expects
+      let features = [];
+      if (S.meta.feature_names) {
+        features = S.meta.feature_names.map(name => {
+          const val = dict[name];
+          return (val === undefined || isNaN(val)) ? 0 : val;
+        });
+      } else {
+        // Fallback for older models (all 22)
+        const flex = FINGERS.map(f => dict[f.name]);
+        const accel = ['aX1','aY1','aZ1','aX2','aY2','aZ2'].map(c => dict[c]);
+        const gyro = ['gX1','gY1','gZ1','gX2','gY2','gZ2'].map(c => dict[c]);
+        features = [...flex, ...accel, ...gyro].map(v => isNaN(v) ? 0 : v);
+      }
+
+      // Feature Smoothing (EMA) to combat IMU/Flex jitter before it reaches the model
+      if (!S.featureEMA || S.featureEMA.length !== features.length) {
+        S.featureEMA = [...features];
+      } else {
+        const F_ALPHA = 0.15; // smooth raw sensor jitter
+        S.featureEMA = S.featureEMA.map((f, i) => f * (1 - F_ALPHA) + features[i] * F_ALPHA);
+      }
+      features = [...S.featureEMA];
+
+      // Apply training-time StandardScaler
+      if (S.meta.normalization) {
+        const { mean, std } = S.meta.normalization;
+        if (mean && std) {
+          features = features.map((v, i) => (v - mean[i]) / (std[i] || 1));
+        }
+      }
+
+      const probsRaw = forwardPass(features);
+      
+      // Probability Smoothing (Exponential Moving Average)
+      if (!S.probEMA || S.probEMA.length !== probsRaw.length) {
+        S.probEMA = [...probsRaw];
+      } else {
+        const ALPHA = 0.15; // Lower is smoother, higher is more responsive
+        S.probEMA = S.probEMA.map((p, i) => p * (1 - ALPHA) + probsRaw[i] * ALPHA);
+      }
+      
+      const probs = S.probEMA;
+      const bestIdx = probs.indexOf(Math.max(...probs));
+
+      const mode = $('handMode') ? $('handMode').value : 'right';
+      let magR = Math.sqrt((S.imu.gX1??0)**2 + (S.imu.gY1??0)**2 + (S.imu.gZ1??0)**2);
+      let magL = Math.sqrt((S.imu.gX2??0)**2 + (S.imu.gY2??0)**2 + (S.imu.gZ2??0)**2);
+      
+      let gMag = magR;
+      if (mode === 'left') gMag = magL;
+      if (mode === 'both') gMag = Math.max(magR, magL);
+
+      return {
+        sign: S.meta.labels[bestIdx],
+        confidence: probs[bestIdx],
+        probs,
+        gyroMag: gMag,
+        isStill: gMag < 10,
+      };
+    }
+
+    // ─── SENTENCE (word mode) ───
+    function addWord(word) {
+      // Don't add duplicate consecutive words
+      if (S.words.length > 0 && S.words[S.words.length - 1] === word) return;
+      S.words.push(word);
+      renderSentence();
+      $('speakBtn').disabled = S.words.length === 0;
+    }
+    function renderSentence() {
+      $('sentenceBox').innerHTML = S.words.map(w =>
+        `<span class="word">${w === '…' ? '…' : T(w)}</span>`
+      ).join('') + '<span class="cursor"></span>';
+    }
+    $('spaceBtn').addEventListener('click', () => addWord('…'));
+    $('backBtn').addEventListener('click', () => {
+      S.words.pop();
+      renderSentence();
+      $('speakBtn').disabled = S.words.length === 0;
+    });
+    $('clearSentBtn').addEventListener('click', () => {
+      S.words = []; renderSentence();
+      $('speakBtn').disabled = true;
+    });
+    $('speakBtn').addEventListener('click', () => {
+      if (!S.words.length) return;
+      const text = S.words.filter(w => w !== '…').map(w => T(w)).join(' ');
+      const u = new SpeechSynthesisUtterance(text);
+      const mode = $('langMode') ? $('langMode').value : 'en';
+      u.lang = mode === 'si' ? 'si-LK' : mode === 'ta' ? 'ta-IN' : 'en-US';
+      const voice = pickVoice(mode);
+      if (voice) {
+        u.voice = voice;
+        u.lang = voice.lang || u.lang;
+      } else if (mode !== 'en') {
+        $('voiceBadge').className = 'badge warn';
+        $('voiceBadge').textContent = mode === 'si'
+          ? '⚠ Install Sinhala voice in Windows'
+          : '⚠ Install Tamil voice in Windows';
+        $('heroConf').textContent = mode === 'si'
+          ? 'Sinhala voice is not installed on this device.'
+          : 'Tamil voice is not installed on this device.';
+        $('heroConf').style.color = 'var(--warning)';
+        console.warn(`No installed ${mode} voice found. Browser will fall back to the default voice.`);
+      }
+      u.rate = 0.85; u.pitch = 1;
+      speechSynthesis.cancel();
+      speechSynthesis.speak(u);
+    });
+
+    // ─── SERIAL PARSING ───
+    function parseLine(line) {
+      const c = line.trim();
+      if (!c.startsWith('DATA')) return;
+      const parts = c.split(',');
+      if (parts.length < 2 || /\(/.test(parts[1])) return;
+      const tokens = parts.slice(1);
+      let imuStart = -1;
+      for (let i = 0; i < tokens.length; i++) {
+        if (!tokens[i].includes(':')) { imuStart = i; break; }
+      }
+      (imuStart === -1 ? tokens : tokens.slice(0, imuStart)).forEach(t => {
+        const ci = t.indexOf(':');
+        if (ci === -1) return;
+        const v = Number(t.slice(ci+1).trim());
+        if (Number.isFinite(v)) S.flex[t.slice(0,ci).trim()] = v;
+      });
+      if (imuStart !== -1) {
+        tokens.slice(imuStart).forEach((t, i) => {
+          if (i < IMU_CH.length) {
+            const v = Number(t.trim());
+            S.imu[IMU_CH[i]] = Number.isFinite(v) ? v : NaN;
+          }
+        });
+      }
+      S.spsCounter++;
+    }
+
+    // ─── UI UPDATE ───
+    let raf;
+    function updateUI() {
+      // Fingers
+      FINGERS.forEach(f => {
+        const raw = S.flex[f.label];
+        if (raw === undefined) return;
+        const n = normFlex(f.label, raw);
+        $(`v-${f.label}`).textContent = (n * 100).toFixed(0) + '%';
+        const bar = $(`bar-${f.label}`);
+        bar.style.width = (n * 100) + '%';
+        bar.style.background = n > 0.5
+          ? 'linear-gradient(90deg, #f59e0b, #ef4444)'
+          : 'linear-gradient(90deg, #6366f1, #818cf8)';
+      });
+
+      // IMU
+      const fmtV = (a,b,c) => `${(a??0).toFixed(2)}, ${(b??0).toFixed(2)}, ${(c??0).toFixed(2)}`;
+      $('ra').textContent = fmtV(S.imu.aX1, S.imu.aY1, S.imu.aZ1);
+      $('rg').textContent = fmtV(S.imu.gX1, S.imu.gY1, S.imu.gZ1);
+      $('ro').textContent = detectOrient(S.imu.aX1, S.imu.aY1, S.imu.aZ1);
+      $('la').textContent = fmtV(S.imu.aX2, S.imu.aY2, S.imu.aZ2);
+      $('lg').textContent = fmtV(S.imu.gX2, S.imu.gY2, S.imu.gZ2);
+      $('lo').textContent = detectOrient(S.imu.aX2, S.imu.aY2, S.imu.aZ2);
+
+      // Predict
+      const result = predict();
+      if (result) {
+        const hero = $('heroSign');
+        hero.textContent = T(result.sign);
+        hero.classList.toggle('low', result.confidence < MIN_CONF);
+
+        const pct = (result.confidence * 100).toFixed(1);
+        $('heroConf').textContent = `${pct}%`;
+        $('heroConf').style.color = result.confidence >= MIN_CONF ? 'var(--success)' : 'var(--warning)';
+        $('heroConfBar').style.width = pct + '%';
+        $('heroConfBar').style.background = result.confidence >= MIN_CONF
+          ? 'var(--success)' : result.confidence > 0.5 ? 'var(--warning)' : 'var(--danger)';
+
+        const mode = $('handMode') ? $('handMode').value : 'right';
+        let orientText = '';
+        if (mode === 'left') {
+          orientText = detectOrient(S.imu.aX2, S.imu.aY2, S.imu.aZ2);
+        } else {
+          orientText = detectOrient(S.imu.aX1, S.imu.aY1, S.imu.aZ1);
+        }
+        
+        $('heroOrient').textContent = orientText
+          + '  |  ' + (result.isStill ? '✅ Steady' : '⚠️ Moving');
+
+        // Hold logic
+        if (result.confidence >= MIN_CONF && result.isStill) {
+          if (result.sign === S.lastSign) {
+            const elapsed = Date.now() - S.signStart;
+            if (elapsed >= HOLD_MS) {
+              addWord(result.sign);
+              S.lastSign = ''; // reset after adding
+              $('holdRing').className = 'hero-hold-ring done';
+              $('holdText').textContent = `✅ "${result.sign}" added!`;
+            } else {
+              $('holdRing').className = 'hero-hold-ring filling';
+              $('holdText').textContent = `Hold... ${((HOLD_MS - elapsed)/1000).toFixed(1)}s`;
+            }
+          } else {
+            S.lastSign = result.sign;
+            S.signStart = Date.now();
+            $('holdRing').className = 'hero-hold-ring';
+            $('holdText').textContent = 'Hold steady to register';
+          }
+        } else {
+          S.lastSign = '';
+          $('holdRing').className = 'hero-hold-ring';
+          $('holdText').textContent = result.isStill
+            ? 'Low confidence — adjust fingers'
+            : 'Hold still...';
+        }
+
+        // Top 5
+        const sorted = result.probs
+          .map((p, i) => ({ label: S.meta.labels[i], prob: p }))
+          .sort((a, b) => b.prob - a.prob)
+          .slice(0, 5);
+        $('topPreds').innerHTML = sorted.map(p => `
+          <div class="pred-row">
+            <span class="pred-label">${T(p.label)}</span>
+            <div class="pred-bar"><div class="pred-bar-fill" style="width:${(p.prob*100).toFixed(1)}%"></div></div>
+            <span class="pred-pct">${(p.prob*100).toFixed(1)}%</span>
+          </div>
+        `).join('');
+      }
+
+      raf = requestAnimationFrame(updateUI);
+    }
+
+    // ─── SERIAL ───
+    async function connect() {
+      if (!('serial' in navigator)) { alert('Use Chrome/Edge'); return; }
+      try {
+        S.port = await navigator.serial.requestPort();
+        await S.port.open({ baudRate: 115200 });
+        S.connected = true;
+        $('statusDot').classList.add('ok');
+        $('connText').textContent = 'Connected';
+        $('spsBadge').classList.remove('hidden');
+        $('connectBtn').disabled = true;
+        $('disconnectBtn').disabled = false;
+
+
+        const spsInt = setInterval(() => {
+          $('spsBadge').textContent = S.spsCounter + ' sps';
+          S.spsCounter = 0;
+        }, 1000);
+        raf = requestAnimationFrame(updateUI);
+
+        const dec = new TextDecoderStream();
+        S.port.readable.pipeTo(dec.writable);
+        S.reader = dec.readable.getReader();
+        while (true) {
+          const { value, done } = await S.reader.read();
+          if (done) break;
+          S.lineBuffer += value;
+          const lines = S.lineBuffer.split(/\r?\n/);
+          S.lineBuffer = lines.pop() || '';
+          lines.forEach(parseLine);
+        }
+        clearInterval(spsInt);
+      } catch (e) {
+        $('connText').textContent = 'Error: ' + e.message;
+      } finally { await disconnect(); }
+    }
+
+    async function disconnect() {
+      try { if (S.reader) { await S.reader.cancel(); S.reader.releaseLock(); S.reader = null; } } catch(e) {}
+      try { if (S.port) { await S.port.close(); S.port = null; } } catch(e) {}
+      S.connected = false;
+      $('statusDot').classList.remove('ok');
+      $('connText').textContent = 'Disconnected';
+      $('spsBadge').classList.add('hidden');
+      $('connectBtn').disabled = false;
+      $('disconnectBtn').disabled = true;
+      if (raf) cancelAnimationFrame(raf);
+    }
+
+    $('connectBtn').addEventListener('click', connect);
+    $('disconnectBtn').addEventListener('click', disconnect);
+
+    renderSentence();
+  </script>
+</body>
+</html>

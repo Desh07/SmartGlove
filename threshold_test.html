@@ -1,0 +1,1447 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Flex Sensor — % Threshold Calibration</title>
+    <style>
+      :root {
+        --bgA: #0b1120;
+        --bgB: #111b33;
+        --card: rgba(18, 28, 52, 0.92);
+        --card-border: rgba(70, 110, 200, 0.22);
+        --ink: #e2e8f4;
+        --muted: #7b8faf;
+        --accent: #4a7cff;
+        --bend-color: #ff8c42;
+        --release-color: #22c997;
+        --neutral-color: #a78bfa;
+        --danger: #ff4d6a;
+        --surface: rgba(30, 46, 80, 0.55);
+        --glass: rgba(255, 255, 255, 0.04);
+        --radius: 14px;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: "Segoe UI", "Inter", system-ui, sans-serif;
+        color: var(--ink);
+        min-height: 100vh;
+        background:
+          radial-gradient(
+            ellipse at 20% 0%,
+            rgba(74, 124, 255, 0.12) 0%,
+            transparent 50%
+          ),
+          radial-gradient(
+            ellipse at 80% 100%,
+            rgba(34, 201, 151, 0.08) 0%,
+            transparent 50%
+          ),
+          linear-gradient(160deg, var(--bgA), var(--bgB));
+        padding: 16px;
+      }
+
+      .app {
+        max-width: 1500px;
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      .panel {
+        background: var(--card);
+        border: 1px solid var(--card-border);
+        border-radius: var(--radius);
+        padding: 16px 20px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        backdrop-filter: blur(12px);
+      }
+
+      h1 {
+        font-size: 1.35rem;
+        font-weight: 700;
+        background: linear-gradient(135deg, #fff, #a8c4ff);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+      h2 {
+        font-size: 1rem;
+        font-weight: 600;
+        color: #cdd8ee;
+        margin-bottom: 10px;
+      }
+      .sub {
+        margin: 4px 0 0;
+        color: var(--muted);
+        font-size: 0.88rem;
+        line-height: 1.4;
+      }
+
+      .controls {
+        margin-top: 12px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+      }
+
+      button,
+      input[type="number"],
+      input[type="text"] {
+        border: 1px solid var(--card-border);
+        background: var(--surface);
+        color: var(--ink);
+        border-radius: 9px;
+        padding: 8px 14px;
+        font-size: 0.88rem;
+        font-family: inherit;
+        transition: all 0.2s;
+      }
+      button {
+        cursor: pointer;
+        font-weight: 600;
+        letter-spacing: 0.3px;
+      }
+      button:hover {
+        background: rgba(74, 124, 255, 0.2);
+        border-color: var(--accent);
+      }
+      button:active {
+        transform: scale(0.97);
+      }
+
+      .btn-connect {
+        background: linear-gradient(135deg, #4a7cff, #3362df);
+        border: none;
+        color: #fff;
+      }
+      .btn-connect:hover {
+        background: linear-gradient(135deg, #5a8cff, #4372ef);
+      }
+      .btn-export {
+        background: linear-gradient(135deg, #22c997, #18a87c);
+        border: none;
+        color: #fff;
+      }
+      .btn-export:hover {
+        filter: brightness(1.1);
+      }
+      .btn-clear {
+        background: rgba(255, 77, 106, 0.15);
+        border-color: rgba(255, 77, 106, 0.3);
+        color: var(--danger);
+      }
+
+      .btn-step {
+        border: none;
+        color: #fff;
+        min-width: 160px;
+        font-size: 0.92rem;
+        padding: 10px 18px;
+      }
+      .btn-step:disabled {
+        opacity: 0.3;
+        cursor: not-allowed;
+      }
+      .btn-step:disabled:hover {
+        filter: none;
+        background: inherit;
+      }
+
+      .btn-step-release {
+        background: linear-gradient(135deg, var(--release-color), #18a87c);
+      }
+      .btn-step-release:hover:not(:disabled) {
+        filter: brightness(1.1);
+      }
+
+      .btn-step-bend {
+        background: linear-gradient(135deg, var(--bend-color), #e06f20);
+      }
+      .btn-step-bend:hover:not(:disabled) {
+        filter: brightness(1.1);
+      }
+
+      .btn-stop {
+        background: linear-gradient(135deg, var(--danger), #d93050);
+        border: none;
+        color: #fff;
+        min-width: 80px;
+        font-size: 0.92rem;
+      }
+      .btn-stop:hover {
+        filter: brightness(1.1);
+      }
+
+      .recording-btn {
+        animation: recPulse 1s ease-in-out infinite;
+      }
+
+      @keyframes recPulse {
+        0%,
+        100% {
+          box-shadow: 0 0 0 rgba(255, 255, 255, 0);
+        }
+        50% {
+          box-shadow: 0 0 18px rgba(255, 255, 255, 0.3);
+        }
+      }
+
+      .status-bar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
+        align-items: center;
+        margin-top: 10px;
+        font-size: 0.85rem;
+        color: var(--muted);
+      }
+      .status-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 6px;
+        vertical-align: middle;
+      }
+      .dot-on {
+        background: var(--release-color);
+        box-shadow: 0 0 8px rgba(34, 201, 151, 0.5);
+      }
+      .dot-off {
+        background: var(--danger);
+      }
+
+      /* Finger assignment */
+      .finger-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 10px;
+        margin-top: 12px;
+      }
+      .finger-assign {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        background: var(--glass);
+        border: 1px solid var(--card-border);
+        border-radius: 10px;
+      }
+      .finger-assign .gpio-label {
+        font-size: 0.82rem;
+        color: var(--muted);
+        min-width: 56px;
+        font-weight: 600;
+      }
+      .finger-assign input {
+        flex: 1;
+        min-width: 0;
+        padding: 5px 8px;
+        font-size: 0.85rem;
+      }
+
+      /* Cal cards */
+      .cal-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(480px, 1fr));
+        gap: 14px;
+        margin-top: 12px;
+      }
+      .cal-card {
+        background: var(--glass);
+        border: 1px solid var(--card-border);
+        border-radius: 12px;
+        padding: 14px;
+      }
+      .cc-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 8px;
+      }
+      .cc-title {
+        font-size: 1.05rem;
+        font-weight: 700;
+        color: #dce4f4;
+      }
+      .cc-gpio {
+        font-size: 0.78rem;
+        color: var(--muted);
+        background: var(--surface);
+        padding: 3px 8px;
+        border-radius: 6px;
+      }
+
+      /* Step indicator */
+      .step-indicator {
+        display: flex;
+        align-items: center;
+        gap: 0;
+        margin-bottom: 10px;
+      }
+      .step-badge {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        font-size: 0.8rem;
+        font-weight: 800;
+        border: 2px solid var(--card-border);
+        color: var(--muted);
+        background: var(--surface);
+        transition: all 0.3s;
+      }
+      .step-badge.done {
+        border-color: var(--release-color);
+        color: var(--release-color);
+        background: rgba(34, 201, 151, 0.1);
+      }
+      .step-badge.active {
+        border-color: var(--accent);
+        color: #fff;
+        background: var(--accent);
+        transform: scale(1.15);
+      }
+      .step-badge.pending {
+        opacity: 0.4;
+      }
+      .step-line {
+        flex: 1;
+        height: 2px;
+        background: var(--card-border);
+        margin: 0 4px;
+      }
+      .step-line.done {
+        background: var(--release-color);
+      }
+
+      .step-label {
+        font-size: 0.72rem;
+        color: var(--muted);
+        text-align: center;
+        margin-top: 4px;
+      }
+      .step-col {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+
+      .cc-actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-bottom: 8px;
+      }
+
+      .cc-rec-indicator {
+        display: none;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.85rem;
+        font-weight: 700;
+        margin-bottom: 6px;
+      }
+      .cc-rec-indicator.active {
+        display: inline-flex;
+      }
+      .rec-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        animation: pulse 1s ease-in-out infinite;
+      }
+      .rec-dot.release {
+        background: var(--release-color);
+      }
+      .rec-dot.bend {
+        background: var(--bend-color);
+      }
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+          transform: scale(1);
+        }
+        50% {
+          opacity: 0.4;
+          transform: scale(0.7);
+        }
+      }
+
+      .cc-live-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 6px;
+        flex-wrap: wrap;
+      }
+      .cc-live {
+        font-size: 0.9rem;
+        color: var(--muted);
+        font-variant-numeric: tabular-nums;
+      }
+      .cc-live strong {
+        color: var(--ink);
+        font-size: 1.1rem;
+      }
+
+      /* Test records */
+      .test-records {
+        margin-top: 10px;
+      }
+      .test-record {
+        background: rgba(0, 0, 0, 0.15);
+        border: 1px solid var(--card-border);
+        border-radius: 10px;
+        padding: 10px;
+        margin-bottom: 6px;
+        display: grid;
+        grid-template-columns: auto 1fr 1fr 1fr auto;
+        gap: 6px 12px;
+        align-items: center;
+        font-size: 0.82rem;
+      }
+      .test-num {
+        color: var(--muted);
+        font-weight: 700;
+        font-size: 0.78rem;
+      }
+      .test-val {
+        font-variant-numeric: tabular-nums;
+      }
+      .test-val-label {
+        color: var(--muted);
+        font-size: 0.72rem;
+      }
+      .test-val-num {
+        font-weight: 700;
+      }
+      .test-pct {
+        font-weight: 800;
+        font-size: 0.92rem;
+      }
+      .test-pct-up {
+        color: var(--bend-color);
+      }
+      .test-pct-down {
+        color: var(--release-color);
+      }
+      .test-del {
+        background: none;
+        border: none;
+        color: var(--danger);
+        cursor: pointer;
+        font-size: 0.92rem;
+        padding: 4px 6px;
+        border-radius: 4px;
+        opacity: 0.4;
+        transition: opacity 0.2s;
+        min-width: auto;
+      }
+      .test-del:hover {
+        opacity: 1;
+        background: rgba(255, 77, 106, 0.15);
+      }
+      .test-empty {
+        color: var(--muted);
+        font-style: italic;
+        font-size: 0.82rem;
+        padding: 8px 0;
+      }
+
+      /* Result box */
+      .cc-result {
+        margin-top: 10px;
+        padding: 10px 14px;
+        border-radius: 10px;
+        background: rgba(74, 124, 255, 0.06);
+        border: 1px solid rgba(74, 124, 255, 0.18);
+      }
+      .cc-result-title {
+        font-size: 0.78rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--accent);
+        margin-bottom: 6px;
+      }
+      .cc-result-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 2px 0;
+        font-size: 0.88rem;
+      }
+      .cc-result-key {
+        color: var(--muted);
+      }
+      .cc-result-val {
+        font-weight: 800;
+        font-size: 1rem;
+      }
+
+      /* Canvas chart */
+      .cc-canvas {
+        width: 100%;
+        height: 110px;
+        border-radius: 8px;
+        border: 1px solid var(--card-border);
+        background: rgba(0, 0, 0, 0.25);
+        display: block;
+        margin-top: 8px;
+      }
+
+      /* Summary table */
+      .summary-table-wrap {
+        overflow-x: auto;
+        margin-top: 12px;
+      }
+      .summary-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.85rem;
+      }
+      .summary-table th {
+        background: var(--surface);
+        color: var(--accent);
+        font-weight: 700;
+        padding: 8px;
+        text-align: left;
+        border-bottom: 2px solid var(--card-border);
+        white-space: nowrap;
+      }
+      .summary-table td {
+        padding: 7px 8px;
+        border-bottom: 1px solid var(--card-border);
+        font-variant-numeric: tabular-nums;
+      }
+      .summary-table tr:hover td {
+        background: rgba(74, 124, 255, 0.06);
+      }
+
+      ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+      }
+      ::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: rgba(74, 124, 255, 0.3);
+        border-radius: 3px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <div class="panel">
+        <h1>⚡ Flex Sensor — Per-Finger % Calibration</h1>
+        <p class="sub">
+          Each test is 3 steps:
+          <strong style="color: var(--release-color)">① RELEASE</strong> (finger
+          resting) →
+          <strong style="color: var(--bend-color)">② BEND</strong> (finger bent)
+          →
+          <strong style="color: var(--release-color)">③ RELEASE</strong> (finger
+          back). Calculates <strong>% increase</strong> (release→bend) and
+          <strong>% decrease</strong> (bend→release). Repeat
+          <strong>unlimited</strong> times. Delete bad tests with ✕.
+        </p>
+
+        <div class="controls">
+          <button id="connectBtn" class="btn-connect" type="button">
+            🔌 Connect Serial
+          </button>
+          <button id="disconnectBtn" type="button">Disconnect</button>
+          <span style="flex: 1"></span>
+          <button id="exportBtn" class="btn-export" type="button">
+            💾 Export Calibration
+          </button>
+          <button id="clearAllBtn" class="btn-clear" type="button">
+            🗑️ Clear All
+          </button>
+        </div>
+
+        <div class="status-bar">
+          <span id="connStatus"
+            ><span class="status-dot dot-off"></span> Disconnected</span
+          >
+          <span id="sampleRate">—</span>
+          <span id="pinInfo">Waiting for serial header…</span>
+        </div>
+      </div>
+
+      <div class="panel" id="assignPanel" style="display: none">
+        <h2>🖐️ Finger Assignment</h2>
+        <div id="fingerGrid" class="finger-grid"></div>
+      </div>
+
+      <div class="panel" id="calPanel" style="display: none">
+        <h2>📊 Per-Finger Calibration</h2>
+        <div id="calGrid" class="cal-grid"></div>
+      </div>
+
+      <div class="panel" id="summaryPanel" style="display: none">
+        <h2>📋 Calibration Summary</h2>
+        <div class="summary-table-wrap">
+          <table class="summary-table">
+            <thead>
+              <tr>
+                <th>Finger</th>
+                <th>GPIO</th>
+                <th>Tests</th>
+                <th>Avg Bend ↑ %</th>
+                <th>Avg Release ↓ %</th>
+              </tr>
+            </thead>
+            <tbody id="summaryBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      /* ============================================================
+       STATE
+    ============================================================ */
+      const DEFAULT_NAMES = [
+        "Left Thumb",
+        "Left Index",
+        "Left Middle",
+        "Left Ring",
+        "Left Pinky",
+        "Right Thumb",
+        "Right Index",
+        "Right Middle",
+        "Right Ring",
+        "Right Pinky",
+      ];
+
+      const state = {
+        port: null,
+        reader: null,
+        lineBuffer: "",
+        connected: false,
+        pins: [],
+        fingerNames: {},
+
+        // Per-pin
+        liveValues: {},
+        chartBuf: {},
+        maxChart: 120,
+
+        // Per-pin calibration
+        // cal[pin] = {
+        //   step: 0 (idle), 1 (recording release1), 2 (recording bend), 3 (recording release2)
+        //   recSamples: [],
+        //   release1Avg: null,
+        //   bendAvg: null,
+        //   release2Avg: null,
+        //   tests: [{ release1, bend, release2, bendPct, releasePct }]
+        // }
+        cal: {},
+
+        sampleCount: 0,
+        lastRateTime: Date.now(),
+        currentRate: 0,
+      };
+
+      const $ = (id) => document.getElementById(id);
+      function fmt(v) {
+        return v == null || !Number.isFinite(v) ? "—" : v.toFixed(1);
+      }
+
+      function setConnStatus(t, ok) {
+        state.connected = ok;
+        $("connStatus").innerHTML =
+          `<span class="status-dot ${ok ? "dot-on" : "dot-off"}"></span> ${t}`;
+      }
+
+      function ensureCal(pin) {
+        if (!state.cal[pin]) {
+          state.cal[pin] = {
+            step: 0,
+            recSamples: [],
+            release1Avg: null,
+            bendAvg: null,
+            release2Avg: null,
+            tests: [],
+          };
+        }
+        return state.cal[pin];
+      }
+
+      /* ============================================================
+       FINGER ASSIGNMENT
+    ============================================================ */
+      function buildFingerAssignment() {
+        const grid = $("fingerGrid");
+        grid.innerHTML = "";
+        state.pins.forEach((pin, i) => {
+          if (!(pin in state.fingerNames))
+            state.fingerNames[pin] = DEFAULT_NAMES[i] || `Sensor ${i + 1}`;
+          const row = document.createElement("div");
+          row.className = "finger-assign";
+          row.innerHTML = `
+          <span class="gpio-label">GPIO ${pin}</span>
+          <input type="text" value="${state.fingerNames[pin]}" data-pin="${pin}" />
+        `;
+          row.querySelector("input").addEventListener("input", (e) => {
+            state.fingerNames[e.target.dataset.pin] = e.target.value;
+            updateCardTitles();
+            updateSummary();
+          });
+          grid.appendChild(row);
+        });
+        $("assignPanel").style.display = "";
+      }
+
+      function updateCardTitles() {
+        state.pins.forEach((pin) => {
+          const el = document.querySelector(`#cc-${pin} .cc-title`);
+          if (el) el.textContent = state.fingerNames[pin] || `GPIO ${pin}`;
+        });
+      }
+
+      /* ============================================================
+       BUILD CARDS
+    ============================================================ */
+      function buildCalCards() {
+        const grid = $("calGrid");
+        grid.innerHTML = "";
+        state.pins.forEach((pin) => {
+          ensureCal(pin);
+          state.chartBuf[pin] = state.chartBuf[pin] || [];
+          grid.appendChild(createCalCard(pin));
+        });
+        $("calPanel").style.display = "";
+        $("summaryPanel").style.display = "";
+      }
+
+      function createCalCard(pin) {
+        const name = state.fingerNames[pin];
+        const card = document.createElement("div");
+        card.className = "cal-card";
+        card.id = `cc-${pin}`;
+
+        card.innerHTML = `
+        <div class="cc-header">
+          <span class="cc-title">${name}</span>
+          <span class="cc-gpio">GPIO ${pin}</span>
+        </div>
+
+        <!-- 3-step indicator -->
+        <div class="step-indicator" id="steps-${pin}">
+          <div class="step-col">
+            <div class="step-badge" id="sb1-${pin}">1</div>
+            <div class="step-label">Release</div>
+          </div>
+          <div class="step-line" id="sl1-${pin}"></div>
+          <div class="step-col">
+            <div class="step-badge" id="sb2-${pin}">2</div>
+            <div class="step-label">Bend</div>
+          </div>
+          <div class="step-line" id="sl2-${pin}"></div>
+          <div class="step-col">
+            <div class="step-badge" id="sb3-${pin}">3</div>
+            <div class="step-label">Release</div>
+          </div>
+        </div>
+
+        <div class="cc-actions" id="actions-${pin}">
+          <button class="btn-step btn-step-release" data-pin="${pin}" data-action="release1">① Release — Record</button>
+          <button class="btn-stop" data-pin="${pin}" data-action="stop">⬛ STOP</button>
+        </div>
+
+        <div class="cc-rec-indicator" id="rec-${pin}">
+          <span class="rec-dot"></span>
+          <span class="rec-text">Recording…</span>
+          <span style="margin-left:auto; font-variant-numeric:tabular-nums;" id="rec-avg-${pin}"></span>
+        </div>
+
+        <div class="cc-live-row">
+          <span class="cc-live" id="live-${pin}">Live: <strong>—</strong></span>
+        </div>
+
+        <canvas class="cc-canvas" id="chart-${pin}"></canvas>
+
+        <div class="test-records" id="tests-${pin}">
+          <div class="test-empty">No tests yet — follow the 3-step sequence above</div>
+        </div>
+
+        <div class="cc-result" id="result-${pin}">
+          <div class="cc-result-title">📐 Average % Change</div>
+          <div class="cc-result-row">
+            <span class="cc-result-key">Bend ↑ (release→bend)</span>
+            <span class="cc-result-val" style="color:var(--bend-color)" id="avg-bend-${pin}">—</span>
+          </div>
+          <div class="cc-result-row">
+            <span class="cc-result-key">Release ↓ (bend→release)</span>
+            <span class="cc-result-val" style="color:var(--release-color)" id="avg-rel-${pin}">—</span>
+          </div>
+          <div class="cc-result-row">
+            <span class="cc-result-key">Tests completed</span>
+            <span class="cc-result-val" style="color:var(--accent)" id="test-count-${pin}">0</span>
+          </div>
+        </div>
+      `;
+
+        requestAnimationFrame(() => {
+          card.querySelectorAll("button[data-action]").forEach((btn) => {
+            btn.addEventListener("click", () =>
+              handleAction(btn.dataset.pin, btn.dataset.action),
+            );
+          });
+          const c = $(`chart-${pin}`);
+          if (c) resizeCanvas(c);
+          updateStepUI(pin);
+        });
+
+        return card;
+      }
+
+      function resizeCanvas(canvas) {
+        const ratio = window.devicePixelRatio || 1;
+        const rect = canvas.getBoundingClientRect();
+        if (rect.width === 0) return;
+        canvas.width = Math.floor(rect.width * ratio);
+        canvas.height = Math.floor(rect.height * ratio);
+        canvas.getContext("2d").setTransform(ratio, 0, 0, ratio, 0, 0);
+      }
+
+      /* ============================================================
+       STEP LOGIC
+    ============================================================ */
+      function handleAction(pin, action) {
+        const cal = ensureCal(pin);
+
+        if (action === "stop") {
+          stopCurrentStep(pin);
+          return;
+        }
+
+        // Start recording for the current step
+        if (action === "release1") {
+          cal.step = 1;
+          cal.recSamples = [];
+          cal.release1Avg = null;
+          cal.bendAvg = null;
+          cal.release2Avg = null;
+        } else if (action === "bend") {
+          cal.step = 2;
+          cal.recSamples = [];
+        } else if (action === "release2") {
+          cal.step = 3;
+          cal.recSamples = [];
+        }
+
+        // Show recording indicator
+        const rec = $(`rec-${pin}`);
+        rec.classList.add("active");
+        const dot = rec.querySelector(".rec-dot");
+        dot.className = `rec-dot ${cal.step === 2 ? "bend" : "release"}`;
+        const txt = rec.querySelector(".rec-text");
+        const stepLabels = { 1: "RELEASE ①", 2: "BEND ②", 3: "RELEASE ③" };
+        txt.textContent = `Recording ${stepLabels[cal.step]}…`;
+        txt.style.color =
+          cal.step === 2 ? "var(--bend-color)" : "var(--release-color)";
+        $(`rec-avg-${pin}`).textContent = "";
+
+        updateStepUI(pin);
+      }
+
+      function stopCurrentStep(pin) {
+        const cal = ensureCal(pin);
+        if (cal.step === 0) return;
+
+        // Compute average of recorded samples
+        if (cal.recSamples.length < 3) {
+          // Too few samples, abort this step
+          cal.step = cal.step === 1 ? 0 : cal.step - 1;
+          $(`rec-${pin}`).classList.remove("active");
+          updateStepUI(pin);
+          return;
+        }
+
+        const avg =
+          cal.recSamples.reduce((a, b) => a + b, 0) / cal.recSamples.length;
+
+        if (cal.step === 1) {
+          cal.release1Avg = avg;
+          cal.step = 10; // done step 1, waiting for step 2
+        } else if (cal.step === 2) {
+          cal.bendAvg = avg;
+          cal.step = 20; // done step 2, waiting for step 3
+        } else if (cal.step === 3) {
+          cal.release2Avg = avg;
+
+          // All 3 steps done — compute percentages
+          const bendPct =
+            ((cal.bendAvg - cal.release1Avg) / cal.release1Avg) * 100;
+          const releasePct =
+            ((cal.bendAvg - cal.release2Avg) / cal.bendAvg) * 100;
+
+          cal.tests.push({
+            release1: cal.release1Avg,
+            bend: cal.bendAvg,
+            release2: cal.release2Avg,
+            bendPct: bendPct,
+            releasePct: releasePct,
+          });
+
+          cal.step = 0; // back to idle, ready for next test
+          cal.release1Avg = null;
+          cal.bendAvg = null;
+          cal.release2Avg = null;
+        }
+
+        cal.recSamples = [];
+        $(`rec-${pin}`).classList.remove("active");
+        updateStepUI(pin);
+        renderTests(pin);
+        updateSummary();
+      }
+
+      /* ============================================================
+       STEP UI — update buttons and step badges
+    ============================================================ */
+      function updateStepUI(pin) {
+        const cal = ensureCal(pin);
+        const actionsEl = $(`actions-${pin}`);
+
+        // Step badges
+        const s = cal.step;
+        const b1 = $(`sb1-${pin}`),
+          b2 = $(`sb2-${pin}`),
+          b3 = $(`sb3-${pin}`);
+        const l1 = $(`sl1-${pin}`),
+          l2 = $(`sl2-${pin}`);
+
+        // Reset
+        [b1, b2, b3].forEach((b) => (b.className = "step-badge pending"));
+        [l1, l2].forEach((l) => (l.className = "step-line"));
+
+        if (s === 0) {
+          // Idle — ready for step 1
+          b1.className = "step-badge"; // next
+          actionsEl.innerHTML = `
+          <button class="btn-step btn-step-release" data-pin="${pin}" data-action="release1">① Release — Record</button>
+          <button class="btn-stop" data-pin="${pin}" data-action="stop">⬛ STOP</button>
+        `;
+        } else if (s === 1) {
+          // Recording release 1
+          b1.className = "step-badge active";
+          actionsEl.innerHTML = `
+          <button class="btn-step btn-step-release recording-btn" disabled>① Recording Release…</button>
+          <button class="btn-stop" data-pin="${pin}" data-action="stop">⬛ STOP</button>
+        `;
+        } else if (s === 10) {
+          // Done step 1, ready for step 2
+          b1.className = "step-badge done";
+          b1.textContent = "✓";
+          l1.className = "step-line done";
+          b2.className = "step-badge";
+          actionsEl.innerHTML = `
+          <button class="btn-step btn-step-bend" data-pin="${pin}" data-action="bend">② Bend — Record</button>
+          <button class="btn-stop" data-pin="${pin}" data-action="stop">⬛ STOP</button>
+        `;
+        } else if (s === 2) {
+          // Recording bend
+          b1.className = "step-badge done";
+          b1.textContent = "✓";
+          l1.className = "step-line done";
+          b2.className = "step-badge active";
+          actionsEl.innerHTML = `
+          <button class="btn-step btn-step-bend recording-btn" disabled>② Recording Bend…</button>
+          <button class="btn-stop" data-pin="${pin}" data-action="stop">⬛ STOP</button>
+        `;
+        } else if (s === 20) {
+          // Done step 2, ready for step 3
+          b1.className = "step-badge done";
+          b1.textContent = "✓";
+          l1.className = "step-line done";
+          b2.className = "step-badge done";
+          b2.textContent = "✓";
+          l2.className = "step-line done";
+          b3.className = "step-badge";
+          actionsEl.innerHTML = `
+          <button class="btn-step btn-step-release" data-pin="${pin}" data-action="release2">③ Release — Record</button>
+          <button class="btn-stop" data-pin="${pin}" data-action="stop">⬛ STOP</button>
+        `;
+        } else if (s === 3) {
+          // Recording release 2
+          b1.className = "step-badge done";
+          b1.textContent = "✓";
+          l1.className = "step-line done";
+          b2.className = "step-badge done";
+          b2.textContent = "✓";
+          l2.className = "step-line done";
+          b3.className = "step-badge active";
+          actionsEl.innerHTML = `
+          <button class="btn-step btn-step-release recording-btn" disabled>③ Recording Release…</button>
+          <button class="btn-stop" data-pin="${pin}" data-action="stop">⬛ STOP</button>
+        `;
+        }
+
+        // Re-bind button listeners
+        actionsEl.querySelectorAll("button[data-action]").forEach((btn) => {
+          btn.addEventListener("click", () =>
+            handleAction(btn.dataset.pin, btn.dataset.action),
+          );
+        });
+      }
+
+      /* ============================================================
+       RENDER TESTS
+    ============================================================ */
+      function renderTests(pin) {
+        const cal = ensureCal(pin);
+        const el = $(`tests-${pin}`);
+
+        if (cal.tests.length === 0) {
+          el.innerHTML =
+            '<div class="test-empty">No tests yet — follow the 3-step sequence above</div>';
+        } else {
+          el.innerHTML = cal.tests
+            .map(
+              (t, i) => `
+          <div class="test-record">
+            <span class="test-num">Test #${i + 1}</span>
+            <span class="test-val">
+              <span class="test-val-label">Release₁</span><br>
+              <span class="test-val-num">${fmt(t.release1)} Ω</span>
+            </span>
+            <span class="test-val">
+              <span class="test-val-label">Bend</span><br>
+              <span class="test-val-num">${fmt(t.bend)} Ω</span>
+            </span>
+            <span class="test-val">
+              <span class="test-val-label">Release₂</span><br>
+              <span class="test-val-num">${fmt(t.release2)} Ω</span>
+            </span>
+            <span style="display:flex; flex-direction:column; gap:2px; text-align:right;">
+              <span class="test-pct test-pct-up">↑ +${fmt(t.bendPct)}%</span>
+              <span class="test-pct test-pct-down">↓ -${fmt(t.releasePct)}%</span>
+            </span>
+            <button class="test-del" title="Delete this test"
+                    onclick="deleteTest('${pin}', ${i})">✕</button>
+          </div>
+        `,
+            )
+            .join("");
+        }
+
+        // Update results
+        const bAvg =
+          cal.tests.length > 0
+            ? cal.tests.reduce((a, t) => a + t.bendPct, 0) / cal.tests.length
+            : null;
+        const rAvg =
+          cal.tests.length > 0
+            ? cal.tests.reduce((a, t) => a + t.releasePct, 0) / cal.tests.length
+            : null;
+
+        $(`avg-bend-${pin}`).textContent =
+          bAvg != null ? `+${fmt(bAvg)}%` : "—";
+        $(`avg-rel-${pin}`).textContent = rAvg != null ? `-${fmt(rAvg)}%` : "—";
+        $(`test-count-${pin}`).textContent = cal.tests.length;
+      }
+
+      function deleteTest(pin, index) {
+        const cal = state.cal[pin];
+        if (!cal) return;
+        cal.tests.splice(index, 1);
+        renderTests(pin);
+        updateSummary();
+      }
+
+      /* ============================================================
+       SUMMARY TABLE
+    ============================================================ */
+      function updateSummary() {
+        let html = "";
+        let hasData = false;
+
+        state.pins.forEach((pin) => {
+          const cal = state.cal[pin];
+          if (!cal || cal.tests.length === 0) return;
+          hasData = true;
+
+          const name = state.fingerNames[pin];
+          const bAvg =
+            cal.tests.reduce((a, t) => a + t.bendPct, 0) / cal.tests.length;
+          const rAvg =
+            cal.tests.reduce((a, t) => a + t.releasePct, 0) / cal.tests.length;
+
+          html += `<tr>
+          <td><strong>${name}</strong></td>
+          <td>GPIO ${pin}</td>
+          <td>${cal.tests.length}</td>
+          <td style="color:var(--bend-color)"><strong>+${fmt(bAvg)}%</strong></td>
+          <td style="color:var(--release-color)"><strong>-${fmt(rAvg)}%</strong></td>
+        </tr>`;
+        });
+
+        $("summaryBody").innerHTML = html;
+        $("summaryPanel").style.display = hasData ? "" : "none";
+      }
+
+      /* ============================================================
+       CHART
+    ============================================================ */
+      function drawChart(pin) {
+        const canvas = $(`chart-${pin}`);
+        if (!canvas) return;
+        const ctx = canvas.getContext("2d");
+        const w = canvas.clientWidth;
+        const h = canvas.clientHeight;
+        if (!w || !h) return;
+        ctx.clearRect(0, 0, w, h);
+
+        const buf = state.chartBuf[pin] || [];
+        if (buf.length < 2) return;
+
+        const pad = { l: 48, r: 8, t: 6, b: 6 };
+        const plotW = w - pad.l - pad.r;
+        const plotH = h - pad.t - pad.b;
+
+        let ymin = Math.min(...buf);
+        let ymax = Math.max(...buf);
+        if (ymax - ymin < 10) {
+          ymin -= 50;
+          ymax += 50;
+        }
+        const yp = (ymax - ymin) * 0.08;
+        ymin -= yp;
+        ymax += yp;
+
+        // Grid
+        ctx.strokeStyle = "rgba(70,110,200,0.15)";
+        ctx.lineWidth = 1;
+        for (let i = 0; i <= 4; i++) {
+          const y = pad.t + (plotH * i) / 4;
+          ctx.beginPath();
+          ctx.moveTo(pad.l, y);
+          ctx.lineTo(pad.l + plotW, y);
+          ctx.stroke();
+        }
+
+        // Y labels
+        ctx.fillStyle = "#7b8faf";
+        ctx.font = "9px Segoe UI";
+        ctx.fillText(fmt(ymax) + "Ω", 1, pad.t + 8);
+        ctx.fillText(fmt(ymin) + "Ω", 1, h - pad.b);
+
+        // Data line
+        ctx.strokeStyle = "#fff";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        for (let i = 0; i < buf.length; i++) {
+          const x = pad.l + (plotW * i) / (state.maxChart - 1);
+          const yN = (buf[i] - ymin) / (ymax - ymin);
+          const y = pad.t + plotH - yN * plotH;
+          i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+
+        // Recording highlight
+        const cal = state.cal[pin];
+        if (cal && (cal.step === 1 || cal.step === 2 || cal.step === 3)) {
+          const color =
+            cal.step === 2 ? "rgba(255,140,66,0.08)" : "rgba(34,201,151,0.08)";
+          ctx.fillStyle = color;
+          ctx.fillRect(pad.l, pad.t, plotW, plotH);
+
+          if (cal.recSamples.length > 0) {
+            const avg =
+              cal.recSamples.reduce((a, b) => a + b, 0) / cal.recSamples.length;
+            const yN = (avg - ymin) / (ymax - ymin);
+            const y = pad.t + plotH - yN * plotH;
+            const col = cal.step === 2 ? "#ff8c42" : "#22c997";
+            ctx.strokeStyle = col;
+            ctx.lineWidth = 1;
+            ctx.setLineDash([4, 4]);
+            ctx.beginPath();
+            ctx.moveTo(pad.l, y);
+            ctx.lineTo(pad.l + plotW, y);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.fillStyle = col;
+            ctx.font = "bold 10px Segoe UI";
+            ctx.fillText(
+              `Avg: ${fmt(avg)} Ω (${cal.recSamples.length} smp)`,
+              pad.l + 4,
+              y - 5,
+            );
+          }
+        }
+      }
+
+      /* ============================================================
+       PROCESS SAMPLE
+    ============================================================ */
+      function processSample(pin, value) {
+        state.liveValues[pin] = value;
+
+        const cb = state.chartBuf[pin] || (state.chartBuf[pin] = []);
+        cb.push(value);
+        while (cb.length > state.maxChart) cb.shift();
+
+        // Store if recording
+        const cal = state.cal[pin];
+        if (cal && (cal.step === 1 || cal.step === 2 || cal.step === 3)) {
+          cal.recSamples.push(value);
+        }
+
+        if (!state._drawPending) {
+          state._drawPending = true;
+          requestAnimationFrame(() => {
+            state.pins.forEach((p) => {
+              const lv = state.liveValues[p];
+              const le = $(`live-${p}`);
+              if (le && lv != null)
+                le.innerHTML = `Live: <strong>${fmt(lv)} Ω</strong>`;
+
+              // Show running average during recording
+              const c = state.cal[p];
+              if (
+                c &&
+                (c.step === 1 || c.step === 2 || c.step === 3) &&
+                c.recSamples.length > 0
+              ) {
+                const avg =
+                  c.recSamples.reduce((a, b) => a + b, 0) / c.recSamples.length;
+                const ra = $(`rec-avg-${p}`);
+                if (ra) {
+                  ra.textContent = `Avg: ${fmt(avg)} Ω (${c.recSamples.length})`;
+                  ra.style.color =
+                    c.step === 2 ? "var(--bend-color)" : "var(--release-color)";
+                }
+              }
+
+              drawChart(p);
+            });
+            state._drawPending = false;
+          });
+        }
+      }
+
+      /* ============================================================
+       CSV + SERIAL
+    ============================================================ */
+      function parseCsvLine(line) {
+        const clean = line.trim();
+        if (!clean || !clean.startsWith("DATA")) return;
+        const parts = clean.split(",");
+        if (parts.length < 2) return;
+
+        if (parts[1] && /^[Pp]/.test(parts[1])) {
+          const parsed = parts
+            .slice(1)
+            .map((s) => Number(s.replace(/[^0-9]/g, "")))
+            .filter(Number.isFinite);
+          if (
+            parsed.length > 0 &&
+            JSON.stringify(parsed) !== JSON.stringify(state.pins)
+          ) {
+            state.pins = parsed;
+            $("pinInfo").textContent = `Pins: ${state.pins.join(", ")}`;
+            buildFingerAssignment();
+            buildCalCards();
+          }
+          return;
+        }
+
+        const values = parts.slice(1).map((s) => {
+          const t = s.trim().toLowerCase();
+          if (t === "nan" || t === "") return null;
+          const n = Number(t);
+          return Number.isFinite(n) ? n : null;
+        });
+
+        if (state.pins.length === 0) {
+          state.pins = Array.from({ length: values.length }, (_, i) => i + 1);
+          $("pinInfo").textContent = `No header — channels 1..${values.length}`;
+          buildFingerAssignment();
+          buildCalCards();
+        }
+
+        state.sampleCount++;
+        const now = Date.now();
+        if (now - state.lastRateTime >= 1000) {
+          state.currentRate = Math.round(
+            (state.sampleCount * 1000) / (now - state.lastRateTime),
+          );
+          state.sampleCount = 0;
+          state.lastRateTime = now;
+          $("sampleRate").textContent = `${state.currentRate} sps`;
+        }
+
+        const count = Math.min(state.pins.length, values.length);
+        for (let i = 0; i < count; i++) {
+          if (values[i] !== null) processSample(state.pins[i], values[i]);
+        }
+      }
+
+      async function disconnectSerial() {
+        try {
+          if (state.reader) {
+            await state.reader.cancel();
+            state.reader.releaseLock();
+            state.reader = null;
+          }
+        } catch (e) {}
+        try {
+          if (state.port) {
+            await state.port.close();
+            state.port = null;
+          }
+        } catch (e) {}
+        setConnStatus("Disconnected", false);
+      }
+
+      async function connectSerial() {
+        if (!("serial" in navigator)) {
+          alert("Web Serial not supported.");
+          return;
+        }
+        try {
+          state.port = await navigator.serial.requestPort();
+          await state.port.open({ baudRate: 115200 });
+          setConnStatus("Connected", true);
+          const dec = new TextDecoderStream();
+          const closed = state.port.readable.pipeTo(dec.writable);
+          state.reader = dec.readable.getReader();
+          while (true) {
+            const { value, done } = await state.reader.read();
+            if (done) break;
+            if (!value) continue;
+            state.lineBuffer += value;
+            const lines = state.lineBuffer.split(/\r?\n/);
+            state.lineBuffer = lines.pop() || "";
+            for (const l of lines) parseCsvLine(l);
+          }
+          await closed;
+        } catch (err) {
+          setConnStatus(`Error: ${err.message}`, false);
+        } finally {
+          await disconnectSerial();
+        }
+      }
+
+      /* ============================================================
+       EXPORT
+    ============================================================ */
+      function exportConfig() {
+        const cfg = {
+          exportDate: new Date().toISOString(),
+          detectionMode: "percentage",
+          fingerNames: state.fingerNames,
+          pins: state.pins,
+          perFinger: {},
+          perFingerThresholds: {},
+        };
+
+        state.pins.forEach((pin) => {
+          const cal = state.cal[pin];
+          if (!cal) return;
+
+          const bendPcts = cal.tests.map((t) => t.bendPct);
+          const relPcts = cal.tests.map((t) => t.releasePct);
+
+          const avgBend =
+            bendPcts.length > 0
+              ? bendPcts.reduce((a, b) => a + b, 0) / bendPcts.length
+              : null;
+          const avgRel =
+            relPcts.length > 0
+              ? relPcts.reduce((a, b) => a + b, 0) / relPcts.length
+              : null;
+
+          cfg.perFinger[pin] = {
+            name: state.fingerNames[pin],
+            tests: cal.tests.length,
+            avgBendPct: avgBend,
+            avgReleasePct: avgRel,
+            allBendPcts: bendPcts,
+            allReleasePcts: relPcts,
+            rawTests: cal.tests,
+          };
+
+          cfg.perFingerThresholds[pin] = {
+            name: state.fingerNames[pin],
+            bendPct: avgBend ?? 10,
+            releasePct: avgRel ?? 10,
+          };
+        });
+
+        const allBend = Object.values(cfg.perFinger)
+          .filter((f) => f.avgBendPct != null)
+          .map((f) => f.avgBendPct);
+        const allRel = Object.values(cfg.perFinger)
+          .filter((f) => f.avgReleasePct != null)
+          .map((f) => f.avgReleasePct);
+        cfg.bendThreshold =
+          allBend.length > 0
+            ? Number(
+                (allBend.reduce((a, b) => a + b, 0) / allBend.length).toFixed(
+                  1,
+                ),
+              )
+            : 10;
+        cfg.releaseThreshold =
+          allRel.length > 0
+            ? Number(
+                (allRel.reduce((a, b) => a + b, 0) / allRel.length).toFixed(1),
+              )
+            : 10;
+
+        const blob = new Blob([JSON.stringify(cfg, null, 2)], {
+          type: "application/json",
+        });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `pct_cal_${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+
+      /* ============================================================
+       EVENT LISTENERS
+    ============================================================ */
+      $("connectBtn").addEventListener("click", connectSerial);
+      $("disconnectBtn").addEventListener("click", disconnectSerial);
+      $("exportBtn").addEventListener("click", exportConfig);
+
+      $("clearAllBtn").addEventListener("click", () => {
+        if (!confirm("Clear ALL calibration data?")) return;
+        state.cal = {};
+        state.pins.forEach((pin) => ensureCal(pin));
+        buildCalCards();
+        updateSummary();
+      });
+
+      window.addEventListener("resize", () => {
+        state.pins.forEach((pin) => {
+          const c = $(`chart-${pin}`);
+          if (c) {
+            resizeCanvas(c);
+            drawChart(pin);
+          }
+        });
+      });
+    </script>
+  </body>
+</html>

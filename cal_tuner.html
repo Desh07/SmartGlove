@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Flex Sensor — Threshold Tuner</title>
+  <style>
+    :root {
+      --bgA: #0b1120;
+      --bgB: #111b33;
+      --card: rgba(18, 28, 52, 0.92);
+      --card-border: rgba(70, 110, 200, 0.22);
+      --ink: #e2e8f4;
+      --muted: #7b8faf;
+      --accent: #4a7cff;
+      --bend-color: #ff8c42;
+      --release-color: #22c997;
+      --neutral-color: #a78bfa;
+      --danger: #ff4d6a;
+      --surface: rgba(30, 46, 80, 0.55);
+      --glass: rgba(255,255,255,0.04);
+      --radius: 14px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', 'Inter', system-ui, sans-serif;
+      color: var(--ink);
+      min-height: 100vh;
+      background:
+        radial-gradient(ellipse at 20% 0%, rgba(74,124,255,0.12) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 100%, rgba(34,201,151,0.08) 0%, transparent 50%),
+        linear-gradient(160deg, var(--bgA), var(--bgB));
+      padding: 16px;
+    }
+
+    .app { max-width: 1500px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+
+    .panel {
+      background: var(--card); border: 1px solid var(--card-border);
+      border-radius: var(--radius); padding: 16px 20px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.3); backdrop-filter: blur(12px);
+    }
+
+    h1 {
+      font-size: 1.35rem; font-weight: 700;
+      background: linear-gradient(135deg, #fff, #a8c4ff);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    h2 { font-size: 1rem; font-weight: 600; color: #cdd8ee; margin-bottom: 10px; }
+    .sub { margin: 4px 0 0; color: var(--muted); font-size: 0.88rem; line-height: 1.4; }
+
+    .controls {
+      margin-top: 12px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+    }
+
+    button, input[type="number"] {
+      border: 1px solid var(--card-border); background: var(--surface);
+      color: var(--ink); border-radius: 9px; padding: 8px 14px;
+      font-size: 0.88rem; font-family: inherit; transition: all 0.2s;
+    }
+    button { cursor: pointer; font-weight: 600; letter-spacing: 0.3px; }
+    button:hover { background: rgba(74,124,255,0.2); border-color: var(--accent); }
+    button:active { transform: scale(0.97); }
+
+    .btn-connect { background: linear-gradient(135deg, #4a7cff, #3362df); border: none; color: #fff; }
+    .btn-connect:hover { background: linear-gradient(135deg, #5a8cff, #4372ef); }
+    .btn-load { background: linear-gradient(135deg, #8b5cf6, #7c3aed); border: none; color: #fff; }
+    .btn-load:hover { filter: brightness(1.1); }
+    .btn-export { background: linear-gradient(135deg, #22c997, #18a87c); border: none; color: #fff; }
+    .btn-export:hover { filter: brightness(1.1); }
+
+    .status-bar {
+      display: flex; flex-wrap: wrap; gap: 16px; align-items: center;
+      margin-top: 10px; font-size: 0.85rem; color: var(--muted);
+    }
+    .status-dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      display: inline-block; margin-right: 6px; vertical-align: middle;
+    }
+    .dot-on { background: var(--release-color); box-shadow: 0 0 8px rgba(34,201,151,0.5); }
+    .dot-off { background: var(--danger); }
+
+    .settings-row {
+      display: flex; flex-wrap: wrap; gap: 16px; align-items: center;
+      margin-top: 10px; font-size: 0.85rem;
+    }
+    .settings-row label { display: flex; align-items: center; gap: 6px; color: var(--muted); }
+    .settings-row input[type="number"] { width: 70px; text-align: center; }
+    .settings-row input[type="range"] { width: 140px; accent-color: var(--accent); }
+    .pct-val {
+      display: inline-block; min-width: 40px; text-align: center;
+      color: var(--accent); font-weight: 700; font-size: 1rem;
+    }
+
+    /* Tuner grid */
+    .tuner-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(440px, 1fr));
+      gap: 14px; margin-top: 12px;
+    }
+
+    .tuner-card {
+      background: var(--glass); border: 1px solid var(--card-border);
+      border-radius: 12px; padding: 14px;
+    }
+
+    .tc-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 8px;
+    }
+    .tc-title { font-size: 1rem; font-weight: 700; color: #dce4f4; }
+    .tc-gpio { font-size: 0.78rem; color: var(--muted); background: var(--surface); padding: 3px 8px; border-radius: 6px; }
+
+    .tc-live-row {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 6px; gap: 10px; flex-wrap: wrap;
+    }
+    .tc-live { font-size: 0.9rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .tc-live strong { color: var(--ink); font-size: 1.1rem; }
+
+    .tc-state {
+      display: inline-block; padding: 4px 14px; border-radius: 16px;
+      font-size: 0.82rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+    }
+    .tc-state-stable   { background: rgba(167,139,250,0.15); color: var(--neutral-color); border: 1px solid rgba(167,139,250,0.3); }
+    .tc-state-bending  { background: rgba(255,140,66,0.2); color: var(--bend-color); border: 1px solid rgba(255,140,66,0.4); }
+    .tc-state-releasing { background: rgba(34,201,151,0.15); color: var(--release-color); border: 1px solid rgba(34,201,151,0.3); }
+    .tc-state-waiting  { background: rgba(60,80,120,0.2); color: var(--muted); border: 1px solid var(--card-border); }
+
+    .tc-pct {
+      font-size: 1.3rem; font-weight: 800; margin: 4px 0;
+      font-variant-numeric: tabular-nums;
+    }
+    .tc-pct.pct-up { color: var(--bend-color); }
+    .tc-pct.pct-down { color: var(--release-color); }
+    .tc-pct.pct-flat { color: var(--neutral-color); }
+
+    /* Percentage gauge bar */
+    .pct-gauge {
+      position: relative; height: 34px;
+      background: rgba(0,0,0,0.35); border-radius: 14px;
+      margin: 8px 0; overflow: visible;
+    }
+    .pct-gauge-fill {
+      position: absolute; top: 2px; height: 30px; border-radius: 12px;
+      transition: width 0.08s, left 0.08s;
+    }
+    .pct-gauge-fill.fill-up { background: linear-gradient(90deg, rgba(255,140,66,0.3), rgba(255,140,66,0.7)); }
+    .pct-gauge-fill.fill-down { background: linear-gradient(90deg, rgba(34,201,151,0.7), rgba(34,201,151,0.3)); }
+    .pct-gauge-center {
+      position: absolute; top: 0; bottom: 0; left: 50%; width: 2px;
+      background: rgba(255,255,255,0.3); z-index: 2;
+    }
+    .pct-gauge-needle {
+      position: absolute; top: -2px; width: 4px; height: 38px;
+      background: #fff; border-radius: 2px;
+      box-shadow: 0 0 8px rgba(255,255,255,0.7);
+      transition: left 0.06s ease; z-index: 3;
+    }
+    .pct-gauge-thresh {
+      position: absolute; top: 0; width: 2px; height: 34px; z-index: 2;
+    }
+    .pct-gauge-label {
+      position: absolute; top: 36px; font-size: 0.65rem; color: var(--muted);
+      transform: translateX(-50%); white-space: nowrap;
+    }
+
+    /* Per-finger threshold */
+    .th-row {
+      display: flex; align-items: center; gap: 8px; margin-top: 8px;
+      font-size: 0.82rem;
+    }
+    .th-row label { color: var(--muted); font-weight: 600; min-width: 90px; }
+    .th-row input[type="range"] { flex: 1; min-width: 80px; }
+    .th-row .th-val { color: var(--ink); font-weight: 700; min-width: 50px; text-align: center; }
+
+    /* Mini chart */
+    .tc-canvas {
+      width: 100%; height: 100px;
+      border-radius: 8px; border: 1px solid var(--card-border);
+      background: rgba(0,0,0,0.25); display: block;
+      margin-top: 8px;
+    }
+
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(74,124,255,0.3); border-radius: 3px; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="panel">
+      <h1>🔧 Threshold Tuner — % Change Mode</h1>
+      <p class="sub">
+        Connect serial → adjust <strong>% thresholds</strong> per finger → see live detection.
+        Optionally load a calibration config to start with suggested values.
+      </p>
+
+      <div class="controls">
+        <label class="btn-load" style="cursor:pointer;">
+          📂 Load Config
+          <input type="file" id="loadCfg" accept=".json" style="display:none" />
+        </label>
+        <button id="connectBtn" class="btn-connect" type="button">🔌 Connect Serial</button>
+        <button id="disconnectBtn" type="button">Disconnect</button>
+        <span style="flex:1"></span>
+        <button id="exportBtn" class="btn-export" type="button">💾 Export Config</button>
+      </div>
+
+      <div class="status-bar">
+        <span id="connStatus"><span class="status-dot dot-off"></span> Disconnected</span>
+        <span id="sampleRate">—</span>
+        <span id="pinInfo">Waiting for serial header…</span>
+      </div>
+
+      <div class="settings-row">
+        <label>Smoothing Window:
+          <input type="number" id="smoothWindow" value="10" min="3" max="100" />
+          <span>samples</span>
+        </label>
+        <label>
+          Global Bend %:
+          <input type="range" id="globalBend" min="1" max="50" step="0.5" value="10" />
+          <span class="pct-val" id="globalBendVal">10%</span>
+        </label>
+        <label>
+          Global Release %:
+          <input type="range" id="globalRelease" min="1" max="50" step="0.5" value="10" />
+          <span class="pct-val" id="globalReleaseVal">10%</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="panel" id="tunerPanel" style="display:none;">
+      <h2>🎛️ Per-Finger Threshold Tuner</h2>
+      <p class="sub">Adjust bend/release % thresholds per finger. The gauge shows current % change with threshold markers.</p>
+      <div id="tunerGrid" class="tuner-grid"></div>
+    </div>
+  </div>
+
+  <script>
+    /* ============================================================
+       STATE
+    ============================================================ */
+    const DEFAULT_NAMES = ['Thumb', 'Index', 'Middle', 'Ring', 'Pinky',
+      'Finger 6', 'Finger 7', 'Finger 8', 'Finger 9', 'Finger 10'];
+
+    const state = {
+      port: null, reader: null, lineBuffer: '', connected: false,
+      pins: [],
+      fingerNames: {},
+      smoothWindow: 10,
+      globalBend: 10,
+      globalRelease: 10,
+
+      // Per-pin
+      th: {},            // th[pin] = { bendPct, releasePct }
+      buffers: {},
+      rollingAvg: {},
+      currentPct: {},
+      currentState: {},
+      chartBuf: {},
+      maxChart: 120,
+      liveValues: {},
+
+      sampleCount: 0, lastRateTime: Date.now(), currentRate: 0
+    };
+
+    const $ = id => document.getElementById(id);
+    function fmt(v) { return v == null || !Number.isFinite(v) ? '—' : v.toFixed(1); }
+
+    function setConnStatus(t, ok) {
+      state.connected = ok;
+      $('connStatus').innerHTML = `<span class="status-dot ${ok?'dot-on':'dot-off'}"></span> ${t}`;
+    }
+
+    /* ============================================================
+       PERCENTAGE DETECTION
+    ============================================================ */
+    function updateRollingAvg(pin, value) {
+      const buf = state.buffers[pin] || (state.buffers[pin] = []);
+      buf.push(value);
+      while (buf.length > state.smoothWindow) buf.shift();
+      const avg = buf.reduce((a, b) => a + b, 0) / buf.length;
+      state.rollingAvg[pin] = avg;
+      return avg;
+    }
+
+    function classify(pin, value) {
+      const avg = state.rollingAvg[pin];
+      if (avg == null || avg === 0 || (state.buffers[pin]?.length || 0) < 3) return 'waiting';
+
+      const pct = ((value - avg) / avg) * 100;
+      state.currentPct[pin] = pct;
+
+      const th = state.th[pin] || { bendPct: state.globalBend, releasePct: state.globalRelease };
+      if (pct >= th.bendPct) return 'bending';
+      if (pct <= -th.releasePct) return 'releasing';
+      return 'stable';
+    }
+
+    /* ============================================================
+       BUILD TUNER CARDS
+    ============================================================ */
+    function buildTunerCards() {
+      const grid = $('tunerGrid');
+      grid.innerHTML = '';
+      state.pins.forEach((pin, i) => {
+        if (!(pin in state.fingerNames))
+          state.fingerNames[pin] = DEFAULT_NAMES[i] || `Sensor ${i + 1}`;
+        if (!state.th[pin])
+          state.th[pin] = { bendPct: state.globalBend, releasePct: state.globalRelease };
+        state.chartBuf[pin] = state.chartBuf[pin] || [];
+        state.currentState[pin] = 'waiting';
+
+        grid.appendChild(createTunerCard(pin));
+      });
+      $('tunerPanel').style.display = '';
+    }
+
+    function createTunerCard(pin) {
+      const name = state.fingerNames[pin];
+      const th = state.th[pin];
+
+      const card = document.createElement('div');
+      card.className = 'tuner-card';
+      card.id = `tc-${pin}`;
+
+      card.innerHTML = `
+        <div class="tc-header">
+          <span class="tc-title">${name}</span>
+          <span class="tc-gpio">GPIO ${pin}</span>
+        </div>
+
+        <div class="tc-live-row">
+          <span class="tc-live" id="live-${pin}">Live: <strong>—</strong></span>
+          <span class="tc-live" id="avg-${pin}">Avg: —</span>
+          <span class="tc-state tc-state-waiting" id="state-${pin}">WAITING</span>
+        </div>
+
+        <div class="tc-pct pct-flat" id="pct-${pin}">0.0%</div>
+
+        <!-- Percentage gauge -->
+        <div class="pct-gauge" id="gauge-${pin}">
+          <div class="pct-gauge-center"></div>
+          <div class="pct-gauge-fill" id="gfill-${pin}"></div>
+          <div class="pct-gauge-needle" id="gneedle-${pin}" style="left:50%"></div>
+          <div class="pct-gauge-thresh" id="gthb-${pin}" style="background:var(--bend-color)"></div>
+          <div class="pct-gauge-thresh" id="gthr-${pin}" style="background:var(--release-color)"></div>
+          <div class="pct-gauge-label" style="left:50%">0%</div>
+          <div class="pct-gauge-label" id="glbl-b-${pin}"></div>
+          <div class="pct-gauge-label" id="glbl-r-${pin}"></div>
+        </div>
+
+        <!-- Per-finger threshold sliders -->
+        <div class="th-row">
+          <label style="color:var(--bend-color)">Bend %</label>
+          <input type="range" min="1" max="50" step="0.5" value="${th.bendPct}"
+                 data-pin="${pin}" data-field="bendPct" />
+          <span class="th-val" id="thbv-${pin}">${fmt(th.bendPct)}%</span>
+        </div>
+        <div class="th-row">
+          <label style="color:var(--release-color)">Release %</label>
+          <input type="range" min="1" max="50" step="0.5" value="${th.releasePct}"
+                 data-pin="${pin}" data-field="releasePct" />
+          <span class="th-val" id="thrv-${pin}">${fmt(th.releasePct)}%</span>
+        </div>
+
+        <canvas class="tc-canvas" id="chart-${pin}"></canvas>
+      `;
+
+      requestAnimationFrame(() => {
+        // Slider listeners
+        card.querySelectorAll('.th-row input[type="range"]').forEach(sl => {
+          sl.addEventListener('input', e => {
+            const p = e.target.dataset.pin;
+            const f = e.target.dataset.field;
+            state.th[p][f] = Number(e.target.value);
+            if (f === 'bendPct') $(`thbv-${p}`).textContent = e.target.value + '%';
+            else $(`thrv-${p}`).textContent = e.target.value + '%';
+            updateGauge(p);
+          });
+        });
+
+        const c = $(`chart-${pin}`);
+        if (c) resizeCanvas(c);
+        updateGauge(pin);
+      });
+
+      return card;
+    }
+
+    function resizeCanvas(canvas) {
+      const ratio = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      if (rect.width === 0) return;
+      canvas.width = Math.floor(rect.width * ratio);
+      canvas.height = Math.floor(rect.height * ratio);
+      canvas.getContext('2d').setTransform(ratio, 0, 0, ratio, 0, 0);
+    }
+
+    /* ============================================================
+       GAUGE
+    ============================================================ */
+    function updateGauge(pin) {
+      const th = state.th[pin] || { bendPct: state.globalBend, releasePct: state.globalRelease };
+      const maxPct = Math.max(th.bendPct, th.releasePct) * 2;
+
+      // Threshold markers (position as % of bar)
+      const bendPos = 50 + (th.bendPct / maxPct) * 50;
+      const releasePos = 50 - (th.releasePct / maxPct) * 50;
+
+      const thb = $(`gthb-${pin}`);
+      if (thb) thb.style.left = bendPos + '%';
+      const thr = $(`gthr-${pin}`);
+      if (thr) thr.style.left = releasePos + '%';
+
+      const lblb = $(`glbl-b-${pin}`);
+      if (lblb) { lblb.style.left = bendPos + '%'; lblb.textContent = `+${fmt(th.bendPct)}%`; }
+      const lblr = $(`glbl-r-${pin}`);
+      if (lblr) { lblr.style.left = releasePos + '%'; lblr.textContent = `-${fmt(th.releasePct)}%`; }
+    }
+
+    /* ============================================================
+       MINI CHART — % change over time
+    ============================================================ */
+    function drawChart(pin) {
+      const canvas = $(`chart-${pin}`);
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const w = canvas.clientWidth;
+      const h = canvas.clientHeight;
+      if (!w || !h) return;
+      ctx.clearRect(0, 0, w, h);
+
+      const buf = state.chartBuf[pin] || [];
+      const th = state.th[pin] || { bendPct: state.globalBend, releasePct: state.globalRelease };
+      const pad = { l: 40, r: 8, t: 6, b: 6 };
+      const plotW = w - pad.l - pad.r;
+      const plotH = h - pad.t - pad.b;
+
+      let ymax = Math.max(th.bendPct * 1.5, 10);
+      if (buf.length > 0) ymax = Math.max(ymax, ...buf.map(Math.abs));
+      ymax *= 1.15;
+      const ymin = -ymax;
+
+      // Zero line
+      const zeroY = pad.t + plotH / 2;
+      ctx.strokeStyle = 'rgba(167, 139, 250, 0.4)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath(); ctx.moveTo(pad.l, zeroY); ctx.lineTo(pad.l + plotW, zeroY); ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Threshold lines
+      function drawThreshLine(pctVal, color, label) {
+        const y = pad.t + plotH - ((pctVal - ymin) / (ymax - ymin)) * plotH;
+        ctx.strokeStyle = color; ctx.lineWidth = 1;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(pad.l + plotW, y); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = color; ctx.font = '9px Segoe UI';
+        ctx.fillText(label, 1, y + 3);
+      }
+      drawThreshLine(th.bendPct, '#ff8c42', `+${fmt(th.bendPct)}%`);
+      drawThreshLine(-th.releasePct, '#22c997', `-${fmt(th.releasePct)}%`);
+
+      // Y labels
+      ctx.fillStyle = '#7b8faf'; ctx.font = '9px Segoe UI';
+      ctx.fillText('0%', 1, zeroY + 3);
+
+      // Data
+      if (buf.length >= 2) {
+        for (let i = 1; i < buf.length; i++) {
+          const x0 = pad.l + plotW * (i - 1) / (state.maxChart - 1);
+          const x1 = pad.l + plotW * i / (state.maxChart - 1);
+          const y0 = pad.t + plotH - ((buf[i-1] - ymin) / (ymax - ymin)) * plotH;
+          const y1 = pad.t + plotH - ((buf[i] - ymin) / (ymax - ymin)) * plotH;
+          ctx.strokeStyle = buf[i] > 0 ? '#ff8c42' : buf[i] < 0 ? '#22c997' : '#a78bfa';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+        }
+      }
+    }
+
+    /* ============================================================
+       PROCESS SAMPLE
+    ============================================================ */
+    function processSample(pin, value) {
+      state.liveValues[pin] = value;
+      const avg = updateRollingAvg(pin, value);
+      const newState = classify(pin, value);
+      state.currentState[pin] = newState;
+      const pct = state.currentPct[pin] || 0;
+
+      const cb = state.chartBuf[pin] || (state.chartBuf[pin] = []);
+      cb.push(pct);
+      while (cb.length > state.maxChart) cb.shift();
+
+      if (!state._drawPending) {
+        state._drawPending = true;
+        requestAnimationFrame(() => {
+          state.pins.forEach(p => {
+            const lv = state.liveValues[p];
+            const av = state.rollingAvg[p];
+            const pc = state.currentPct[p] || 0;
+            const st = state.currentState[p];
+            const th = state.th[p] || { bendPct: state.globalBend, releasePct: state.globalRelease };
+
+            const le = $(`live-${p}`);
+            if (le) le.innerHTML = `Live: <strong>${fmt(lv)} Ω</strong>`;
+            const ae = $(`avg-${p}`);
+            if (ae) ae.textContent = `Avg: ${fmt(av)} Ω`;
+
+            const pe = $(`pct-${p}`);
+            if (pe) {
+              const sign = pc >= 0 ? '+' : '';
+              pe.textContent = `${sign}${pc.toFixed(1)}%`;
+              pe.className = `tc-pct ${pc >= th.bendPct ? 'pct-up' : pc <= -th.releasePct ? 'pct-down' : 'pct-flat'}`;
+            }
+
+            const se = $(`state-${p}`);
+            if (se) {
+              const labels = { stable: 'STABLE', bending: 'BENDING ↑', releasing: 'RELEASING ↓', waiting: 'WAITING' };
+              se.textContent = labels[st] || 'WAITING';
+              se.className = `tc-state tc-state-${st}`;
+            }
+
+            // Gauge needle
+            const maxPct = Math.max(th.bendPct, th.releasePct) * 2;
+            const needlePos = 50 + (pc / maxPct) * 50;
+            const needle = $(`gneedle-${p}`);
+            if (needle) needle.style.left = Math.max(0, Math.min(100, needlePos)) + '%';
+
+            // Gauge fill
+            const fill = $(`gfill-${p}`);
+            if (fill) {
+              const absPct = Math.min(Math.abs(pc), maxPct);
+              const widthPct = (absPct / maxPct) * 50;
+              if (pc >= 0) {
+                fill.style.left = '50%'; fill.style.width = widthPct + '%';
+                fill.className = 'pct-gauge-fill fill-up';
+              } else {
+                fill.style.left = (50 - widthPct) + '%'; fill.style.width = widthPct + '%';
+                fill.className = 'pct-gauge-fill fill-down';
+              }
+            }
+
+            drawChart(p);
+          });
+          state._drawPending = false;
+        });
+      }
+    }
+
+    /* ============================================================
+       CSV + SERIAL
+    ============================================================ */
+    function parseCsvLine(line) {
+      const clean = line.trim();
+      if (!clean || !clean.startsWith('DATA')) return;
+      const parts = clean.split(',');
+      if (parts.length < 2) return;
+
+      if (parts[1] && /^[Pp]/.test(parts[1])) {
+        const parsed = parts.slice(1).map(s => Number(s.replace(/[^0-9]/g, ''))).filter(Number.isFinite);
+        if (parsed.length > 0 && JSON.stringify(parsed) !== JSON.stringify(state.pins)) {
+          state.pins = parsed;
+          $('pinInfo').textContent = `Pins: ${state.pins.join(', ')}`;
+          buildTunerCards();
+        }
+        return;
+      }
+
+      const values = parts.slice(1).map(s => {
+        const t = s.trim().toLowerCase();
+        if (t === 'nan' || t === '') return null;
+        const n = Number(t);
+        return Number.isFinite(n) ? n : null;
+      });
+
+      if (state.pins.length === 0) {
+        state.pins = Array.from({ length: values.length }, (_, i) => i + 1);
+        $('pinInfo').textContent = `No header — channels 1..${values.length}`;
+        buildTunerCards();
+      }
+
+      state.sampleCount++;
+      const now = Date.now();
+      if (now - state.lastRateTime >= 1000) {
+        state.currentRate = Math.round(state.sampleCount * 1000 / (now - state.lastRateTime));
+        state.sampleCount = 0; state.lastRateTime = now;
+        $('sampleRate').textContent = `${state.currentRate} sps`;
+      }
+
+      const count = Math.min(state.pins.length, values.length);
+      for (let i = 0; i < count; i++) {
+        if (values[i] !== null) processSample(state.pins[i], values[i]);
+      }
+    }
+
+    async function disconnectSerial() {
+      try { if (state.reader) { await state.reader.cancel(); state.reader.releaseLock(); state.reader = null; } } catch(e) {}
+      try { if (state.port) { await state.port.close(); state.port = null; } } catch(e) {}
+      setConnStatus('Disconnected', false);
+    }
+
+    async function connectSerial() {
+      if (!('serial' in navigator)) { alert('Web Serial not supported.'); return; }
+      try {
+        state.port = await navigator.serial.requestPort();
+        await state.port.open({ baudRate: 115200 });
+        setConnStatus('Connected', true);
+        const dec = new TextDecoderStream();
+        const closed = state.port.readable.pipeTo(dec.writable);
+        state.reader = dec.readable.getReader();
+        while (true) {
+          const { value, done } = await state.reader.read();
+          if (done) break;
+          if (!value) continue;
+          state.lineBuffer += value;
+          const lines = state.lineBuffer.split(/\r?\n/);
+          state.lineBuffer = lines.pop() || '';
+          for (const l of lines) parseCsvLine(l);
+        }
+        await closed;
+      } catch (err) { setConnStatus(`Error: ${err.message}`, false); }
+      finally { await disconnectSerial(); }
+    }
+
+    /* ============================================================
+       EXPORT / IMPORT CONFIG
+    ============================================================ */
+    function exportConfig() {
+      const cfg = {
+        exportDate: new Date().toISOString(),
+        detectionMode: 'percentage',
+        smoothWindow: state.smoothWindow,
+        fingerNames: state.fingerNames,
+        bendThreshold: state.globalBend,
+        releaseThreshold: state.globalRelease,
+        perFingerThresholds: {}
+      };
+      state.pins.forEach(pin => {
+        const th = state.th[pin];
+        cfg.perFingerThresholds[pin] = {
+          name: state.fingerNames[pin],
+          bendPct: th?.bendPct ?? state.globalBend,
+          releasePct: th?.releasePct ?? state.globalRelease
+        };
+      });
+
+      const blob = new Blob([JSON.stringify(cfg, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `tuned_config_${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function loadConfig(data) {
+      if (data.smoothWindow) { state.smoothWindow = data.smoothWindow; $('smoothWindow').value = data.smoothWindow; }
+      if (data.fingerNames) state.fingerNames = data.fingerNames;
+
+      if (data.bendThreshold != null || data.suggestedBendThreshold != null) {
+        const v = data.bendThreshold ?? data.suggestedBendThreshold ?? 10;
+        state.globalBend = v;
+        $('globalBend').value = v;
+        $('globalBendVal').textContent = v + '%';
+      }
+      if (data.releaseThreshold != null || data.suggestedReleaseThreshold != null) {
+        const v = data.releaseThreshold ?? data.suggestedReleaseThreshold ?? 10;
+        state.globalRelease = v;
+        $('globalRelease').value = v;
+        $('globalReleaseVal').textContent = v + '%';
+      }
+
+      // Per-finger thresholds
+      if (data.perFingerThresholds) {
+        Object.entries(data.perFingerThresholds).forEach(([pin, cfg]) => {
+          state.th[pin] = {
+            bendPct: cfg.bendPct ?? state.globalBend,
+            releasePct: cfg.releasePct ?? state.globalRelease
+          };
+        });
+      } else if (data.perFinger) {
+        // Load from calibration export
+        Object.entries(data.perFinger).forEach(([pin, cfg]) => {
+          const sugg = cfg.suggestedThreshold ?? state.globalBend;
+          state.th[pin] = { bendPct: sugg, releasePct: sugg };
+        });
+      }
+
+      // If we have pins already, rebuild
+      if (state.pins.length > 0) buildTunerCards();
+    }
+
+    /* ============================================================
+       EVENT LISTENERS
+    ============================================================ */
+    $('connectBtn').addEventListener('click', connectSerial);
+    $('disconnectBtn').addEventListener('click', disconnectSerial);
+    $('exportBtn').addEventListener('click', exportConfig);
+
+    $('loadCfg').addEventListener('change', e => {
+      if (!e.target.files.length) return;
+      const r = new FileReader();
+      r.onload = ev => {
+        try { loadConfig(JSON.parse(ev.target.result)); }
+        catch (err) { alert(`Parse error: ${err.message}`); }
+      };
+      r.readAsText(e.target.files[0]);
+    });
+
+    $('globalBend').addEventListener('input', e => {
+      state.globalBend = Number(e.target.value);
+      $('globalBendVal').textContent = e.target.value + '%';
+      // Apply global to all pins
+      state.pins.forEach(pin => {
+        state.th[pin].bendPct = state.globalBend;
+        const sl = document.querySelector(`#tc-${pin} [data-field="bendPct"]`);
+        if (sl) sl.value = state.globalBend;
+        const v = $(`thbv-${pin}`);
+        if (v) v.textContent = fmt(state.globalBend) + '%';
+        updateGauge(pin);
+      });
+    });
+
+    $('globalRelease').addEventListener('input', e => {
+      state.globalRelease = Number(e.target.value);
+      $('globalReleaseVal').textContent = e.target.value + '%';
+      state.pins.forEach(pin => {
+        state.th[pin].releasePct = state.globalRelease;
+        const sl = document.querySelector(`#tc-${pin} [data-field="releasePct"]`);
+        if (sl) sl.value = state.globalRelease;
+        const v = $(`thrv-${pin}`);
+        if (v) v.textContent = fmt(state.globalRelease) + '%';
+        updateGauge(pin);
+      });
+    });
+
+    $('smoothWindow').addEventListener('change', e => {
+      state.smoothWindow = Math.max(3, Number(e.target.value) || 10);
+    });
+
+    window.addEventListener('resize', () => {
+      state.pins.forEach(pin => {
+        const c = $(`chart-${pin}`);
+        if (c) { resizeCanvas(c); drawChart(pin); }
+      });
+    });
+  </script>
+</body>
+</html>

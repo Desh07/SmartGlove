@@ -1,0 +1,140 @@
+{
+  "exportDate": "2026-04-21T16:52:57.300Z",
+  "userId": "user_1",
+  "fingers": {
+    "RT": {
+      "name": "R.Thumb",
+      "gpio": 15,
+      "restResistance": 370.04,
+      "bentResistance": 357.376,
+      "range": 12.664000000000044
+    },
+    "RI": {
+      "name": "R.Index",
+      "gpio": 4,
+      "restResistance": 2291.128,
+      "bentResistance": 2223.968,
+      "range": 67.16000000000031
+    },
+    "RM": {
+      "name": "R.Middle",
+      "gpio": 34,
+      "restResistance": 135.272,
+      "bentResistance": 0,
+      "range": 135.272
+    },
+    "RR": {
+      "name": "R.Ring",
+      "gpio": 35,
+      "restResistance": 148.272,
+      "bentResistance": 139.472,
+      "range": 8.799999999999983
+    },
+    "RP": {
+      "name": "R.Pinky",
+      "gpio": 32,
+      "restResistance": 2373.256,
+      "bentResistance": 2301.624,
+      "range": 71.63200000000006
+    },
+    "LT": {
+      "name": "L.Thumb",
+      "gpio": 33,
+      "restResistance": 2427.992,
+      "bentResistance": 2366.088,
+      "range": 61.903999999999996
+    },
+    "LI": {
+      "name": "L.Index",
+      "gpio": 25,
+      "restResistance": 367.32,
+      "bentResistance": 333.64,
+      "range": 33.68000000000001
+    },
+    "LM": {
+      "name": "L.Middle",
+      "gpio": 26,
+      "restResistance": 427.152,
+      "bentResistance": 405.72,
+      "range": 21.43199999999996
+    },
+    "LR": {
+      "name": "L.Ring",
+      "gpio": 27,
+      "restResistance": 163.936,
+      "bentResistance": 148.896,
+      "range": 15.04000000000002
+    },
+    "LP": {
+      "name": "L.Pinky",
+      "gpio": 14,
+      "restResistance": 745.464,
+      "bentResistance": 732.16,
+      "range": 13.304000000000087
+    }
+  },
+  "imu": {
+    "mpu1": {
+      "address": "0x69",
+      "hand": "right",
+      "gyroOffset": {
+        "gX": -8.530959999999999,
+        "gY": -2.5944,
+        "gZ": -0.025680000000000064
+      },
+      "orientations": {
+        "palmDown": {
+          "aX": 1.0117280000000004,
+          "aY": -0.004207999999999999,
+          "aZ": -0.08857599999999997
+        },
+        "palmUp": {
+          "aX": 0.9182320000000008,
+          "aY": 0.27570399999999995,
+          "aZ": -0.32060000000000016
+        },
+        "sideways": {
+          "aX": 1.0031920000000005,
+          "aY": 0.03353599999999993,
+          "aZ": -0.11604799999999996
+        },
+        "forward": {
+          "aX": 1.0168960000000002,
+          "aY": -0.020023999999999972,
+          "aZ": -0.058504000000000014
+        }
+      }
+    },
+    "mpu2": {
+      "address": "0x68",
+      "hand": "left",
+      "gyroOffset": {
+        "gX": 11.418239999999997,
+        "gY": -6.180399999999997,
+        "gZ": 2.229600000000001
+      },
+      "orientations": {
+        "palmDown": {
+          "aX": 1.0692399999999993,
+          "aY": -0.06272800000000003,
+          "aZ": 0.11786400000000007
+        },
+        "palmUp": {
+          "aX": 0.8906479999999993,
+          "aY": -0.48815200000000003,
+          "aZ": -0.19964799999999996
+        },
+        "sideways": {
+          "aX": 1.0402800000000008,
+          "aY": -0.18277600000000008,
+          "aZ": 0.109944
+        },
+        "forward": {
+          "aX": 1.0738959999999989,
+          "aY": -0.036871999999999995,
+          "aZ": 0.04634399999999997
+        }
+      }
+    }
+  }
+}
