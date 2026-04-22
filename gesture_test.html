@@ -1,0 +1,1016 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Flex Sensor — Live Gesture Detection (% Change)</title>
+  <style>
+    :root {
+      --bgA: #0b1120;
+      --bgB: #111b33;
+      --card: rgba(18, 28, 52, 0.92);
+      --card-border: rgba(70, 110, 200, 0.22);
+      --ink: #e2e8f4;
+      --muted: #7b8faf;
+      --accent: #4a7cff;
+      --bend-color: #ff8c42;
+      --release-color: #22c997;
+      --neutral-color: #a78bfa;
+      --danger: #ff4d6a;
+      --surface: rgba(30, 46, 80, 0.55);
+      --glass: rgba(255,255,255,0.04);
+      --radius: 14px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', 'Inter', system-ui, sans-serif;
+      color: var(--ink);
+      min-height: 100vh;
+      background:
+        radial-gradient(ellipse at 20% 0%, rgba(74,124,255,0.12) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 100%, rgba(34,201,151,0.08) 0%, transparent 50%),
+        linear-gradient(160deg, var(--bgA), var(--bgB));
+      padding: 16px;
+    }
+
+    .app { max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+
+    .panel {
+      background: var(--card); border: 1px solid var(--card-border);
+      border-radius: var(--radius); padding: 16px 20px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.3); backdrop-filter: blur(12px);
+    }
+
+    h1 {
+      font-size: 1.35rem; font-weight: 700;
+      background: linear-gradient(135deg, #fff, #a8c4ff);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    h2 { font-size: 1rem; font-weight: 600; color: #cdd8ee; margin-bottom: 10px; }
+    .sub { margin: 4px 0 0; color: var(--muted); font-size: 0.88rem; line-height: 1.4; }
+
+    .controls {
+      margin-top: 12px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+    }
+
+    button, select, input[type="number"] {
+      border: 1px solid var(--card-border); background: var(--surface);
+      color: var(--ink); border-radius: 9px; padding: 8px 14px;
+      font-size: 0.88rem; font-family: inherit; transition: all 0.2s;
+    }
+    button { cursor: pointer; font-weight: 600; letter-spacing: 0.3px; }
+    button:hover { background: rgba(74,124,255,0.2); border-color: var(--accent); }
+    button:active { transform: scale(0.97); }
+
+    .btn-connect { background: linear-gradient(135deg, #4a7cff, #3362df); border: none; color: #fff; }
+    .btn-connect:hover { background: linear-gradient(135deg, #5a8cff, #4372ef); }
+    .btn-load { background: linear-gradient(135deg, #8b5cf6, #7c3aed); border: none; color: #fff; }
+    .btn-load:hover { filter: brightness(1.1); }
+    .btn-export { background: linear-gradient(135deg, #22c997, #18a87c); border: none; color: #fff; }
+    .btn-export:hover { filter: brightness(1.1); }
+
+    .status-bar {
+      display: flex; flex-wrap: wrap; gap: 16px; align-items: center;
+      margin-top: 10px; font-size: 0.85rem; color: var(--muted);
+    }
+    .status-dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      display: inline-block; margin-right: 6px; vertical-align: middle;
+    }
+    .dot-on { background: var(--release-color); box-shadow: 0 0 8px rgba(34,201,151,0.5); }
+    .dot-off { background: var(--danger); }
+
+    .settings-row {
+      display: flex; flex-wrap: wrap; gap: 16px; align-items: center;
+      margin-top: 10px; font-size: 0.85rem;
+    }
+    .settings-row label { display: flex; align-items: center; gap: 6px; color: var(--muted); }
+    .settings-row input[type="number"] { width: 70px; text-align: center; }
+    .settings-row .range-wrap { display: flex; align-items: center; gap: 8px; }
+    .settings-row input[type="range"] {
+      width: 140px; accent-color: var(--accent);
+    }
+    .pct-val {
+      display: inline-block; min-width: 40px; text-align: center;
+      color: var(--accent); font-weight: 700; font-size: 1rem;
+    }
+
+    /* Hand grid */
+    .hand-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 14px; margin-top: 14px;
+    }
+
+    .finger-card {
+      background: var(--glass); border: 2px solid var(--card-border);
+      border-radius: 14px; padding: 16px; text-align: center;
+      transition: all 0.25s ease; position: relative; overflow: hidden;
+    }
+    .finger-card::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0;
+      height: 4px; border-radius: 14px 14px 0 0; transition: background 0.25s;
+    }
+
+    .finger-card.state-stable { border-color: rgba(167,139,250,0.3); }
+    .finger-card.state-stable::before { background: var(--neutral-color); }
+
+    .finger-card.state-bending {
+      border-color: rgba(255,140,66,0.5); background: rgba(255,140,66,0.08);
+      box-shadow: 0 0 24px rgba(255,140,66,0.15);
+    }
+    .finger-card.state-bending::before { background: var(--bend-color); }
+
+    .finger-card.state-releasing {
+      border-color: rgba(34,201,151,0.4); background: rgba(34,201,151,0.06);
+    }
+    .finger-card.state-releasing::before { background: var(--release-color); }
+
+    .finger-card.state-waiting { border-color: var(--card-border); opacity: 0.6; }
+    .finger-card.state-waiting::before { background: var(--muted); }
+
+    .finger-icon { font-size: 2.8rem; margin-bottom: 6px; transition: transform 0.3s ease; }
+    .finger-card.state-bending .finger-icon { transform: rotate(-30deg) scale(1.1); }
+
+    .finger-name { font-size: 1.1rem; font-weight: 700; color: var(--ink); margin-bottom: 2px; }
+    .finger-gpio { font-size: 0.78rem; color: var(--muted); margin-bottom: 10px; }
+
+    .finger-state-badge {
+      display: inline-block; padding: 5px 16px; border-radius: 20px;
+      font-size: 0.9rem; font-weight: 700; letter-spacing: 1px;
+      text-transform: uppercase; margin-bottom: 10px; transition: all 0.25s;
+    }
+    .badge-stable { background: rgba(167,139,250,0.15); color: var(--neutral-color); border: 1px solid rgba(167,139,250,0.3); }
+    .badge-bending { background: rgba(255,140,66,0.2); color: var(--bend-color); border: 1px solid rgba(255,140,66,0.4); animation: bendPulse 1.2s ease-in-out infinite; }
+    .badge-releasing { background: rgba(34,201,151,0.15); color: var(--release-color); border: 1px solid rgba(34,201,151,0.3); }
+    .badge-waiting { background: rgba(60,80,120,0.2); color: var(--muted); border: 1px solid var(--card-border); }
+
+    @keyframes bendPulse {
+      0%, 100% { box-shadow: 0 0 0px rgba(255,140,66,0); }
+      50% { box-shadow: 0 0 16px rgba(255,140,66,0.35); }
+    }
+
+    .finger-live { font-size: 0.82rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .finger-live strong { color: var(--ink); font-size: 1rem; }
+    .finger-avg { font-size: 0.78rem; color: var(--muted); margin-top: 2px; }
+    .finger-pct {
+      font-size: 1.3rem; font-weight: 800; margin-top: 6px;
+      font-variant-numeric: tabular-nums; transition: color 0.2s;
+    }
+    .finger-pct.pct-up { color: var(--bend-color); }
+    .finger-pct.pct-down { color: var(--release-color); }
+    .finger-pct.pct-flat { color: var(--neutral-color); }
+
+    .finger-direction {
+      font-size: 1.6rem; margin-top: 4px; transition: all 0.2s;
+    }
+
+    /* Percentage bar */
+    .pct-bar-wrap {
+      position: relative; height: 22px;
+      background: rgba(0,0,0,0.3); border-radius: 11px;
+      margin-top: 8px; overflow: hidden;
+    }
+    .pct-bar-fill {
+      position: absolute; top: 0; height: 100%; border-radius: 11px;
+      transition: width 0.1s ease, background 0.2s;
+      min-width: 2px;
+    }
+    .pct-bar-fill.fill-up { background: linear-gradient(90deg, rgba(255,140,66,0.4), rgba(255,140,66,0.8)); }
+    .pct-bar-fill.fill-down { background: linear-gradient(90deg, rgba(34,201,151,0.8), rgba(34,201,151,0.4)); }
+    .pct-bar-center {
+      position: absolute; top: 0; bottom: 0; width: 2px;
+      background: rgba(255,255,255,0.3); left: 50%; z-index: 2;
+    }
+    .pct-bar-thresh-left, .pct-bar-thresh-right {
+      position: absolute; top: 0; bottom: 0; width: 2px; z-index: 2;
+    }
+    .pct-bar-thresh-left { background: var(--release-color); }
+    .pct-bar-thresh-right { background: var(--bend-color); }
+    .pct-bar-label {
+      position: absolute; bottom: -14px; font-size: 0.6rem; color: var(--muted);
+      transform: translateX(-50%);
+    }
+
+    /* Event log */
+    .event-log {
+      max-height: 260px; overflow-y: auto; margin-top: 10px;
+      background: rgba(0,0,0,0.25); border-radius: 10px; padding: 10px;
+      font-family: 'Cascadia Code', 'Fira Code', monospace; font-size: 0.78rem;
+    }
+    .log-entry { padding: 3px 0; border-bottom: 1px solid rgba(70,110,200,0.08); display: flex; gap: 8px; }
+    .log-time { color: var(--muted); min-width: 75px; }
+    .log-finger { font-weight: 600; min-width: 80px; }
+    .log-event-bending { color: var(--bend-color); }
+    .log-event-releasing { color: var(--release-color); }
+    .log-event-stable { color: var(--neutral-color); }
+
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(74,124,255,0.3); border-radius: 3px; }
+
+    /* Calibration Editor */
+    .cal-editor-panel { display: none; }
+    .cal-editor-panel.visible { display: block; }
+    .cal-header-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; }
+    .cal-header-row h2 { margin-bottom: 0; }
+    .cal-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .btn-apply { background: linear-gradient(135deg, #4a7cff, #3362df); border: none; color: #fff; }
+    .btn-apply:hover { filter: brightness(1.15); }
+    .btn-save-new { background: linear-gradient(135deg, #f59e0b, #d97706); border: none; color: #fff; }
+    .btn-save-new:hover { filter: brightness(1.15); }
+    .btn-reset-all { background: rgba(255,77,106,0.15); border: 1px solid rgba(255,77,106,0.3); color: var(--danger); }
+    .btn-reset-all:hover { background: rgba(255,77,106,0.25); }
+
+    .cal-table-wrap { overflow-x: auto; }
+    .cal-table {
+      width: 100%; border-collapse: collapse; font-size: 0.85rem;
+    }
+    .cal-table th {
+      padding: 8px 10px; text-align: center; font-weight: 600;
+      color: var(--muted); border-bottom: 2px solid var(--card-border);
+      white-space: nowrap; font-size: 0.78rem; text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .cal-table td {
+      padding: 6px 10px; text-align: center; border-bottom: 1px solid rgba(70,110,200,0.1);
+      vertical-align: middle;
+    }
+    .cal-table tr:hover td { background: rgba(74,124,255,0.05); }
+    .cal-table .finger-label { text-align: left; font-weight: 600; color: var(--ink); }
+    .cal-table .gpio-label { color: var(--muted); font-size: 0.78rem; }
+    .cal-original {
+      color: var(--muted); font-variant-numeric: tabular-nums;
+      background: rgba(0,0,0,0.15); border-radius: 6px; padding: 3px 8px;
+      display: inline-block; min-width: 60px;
+    }
+    .cal-input {
+      width: 80px; text-align: center; padding: 5px 8px;
+      border: 1px solid var(--card-border); background: var(--surface);
+      color: var(--ink); border-radius: 7px; font-size: 0.85rem;
+      font-family: inherit; font-variant-numeric: tabular-nums;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .cal-input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(74,124,255,0.2); outline: none; }
+    .cal-input.modified { border-color: #f59e0b; background: rgba(245,158,11,0.08); }
+    .cal-diff { font-size: 0.72rem; margin-top: 2px; font-weight: 600; }
+    .cal-diff.diff-up { color: var(--bend-color); }
+    .cal-diff.diff-down { color: var(--release-color); }
+    .cal-diff.diff-none { color: var(--muted); }
+    .btn-row-reset {
+      padding: 4px 10px; font-size: 0.72rem; border-radius: 6px;
+      background: rgba(255,255,255,0.05); border: 1px solid var(--card-border);
+      color: var(--muted); cursor: pointer; transition: all 0.2s;
+    }
+    .btn-row-reset:hover { background: rgba(255,77,106,0.1); border-color: var(--danger); color: var(--danger); }
+    .cal-status {
+      margin-top: 10px; padding: 8px 14px; border-radius: 8px;
+      font-size: 0.82rem; display: none; animation: fadeIn 0.3s;
+    }
+    .cal-status.success { display: block; background: rgba(34,201,151,0.12); color: var(--release-color); border: 1px solid rgba(34,201,151,0.3); }
+    .cal-status.info { display: block; background: rgba(74,124,255,0.1); color: var(--accent); border: 1px solid rgba(74,124,255,0.2); }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="panel">
+      <h1>🤚 Live Gesture Detection — % Change Mode</h1>
+      <p class="sub">Connect serial → resistance going <strong>UP</strong> by X% = <strong>Bending</strong>, going <strong>DOWN</strong> = <strong>Releasing</strong>. No fixed baseline needed.</p>
+
+      <div class="controls">
+        <button id="connectBtn" class="btn-connect" type="button">🔌 Connect Serial</button>
+        <button id="disconnectBtn" type="button">Disconnect</button>
+        <span style="flex:1"></span>
+        <label class="btn-load" style="cursor:pointer;">
+          📂 Load Config
+          <input type="file" id="loadCfg" accept=".json" style="display:none" />
+        </label>
+        <button id="exportBtn" class="btn-export" type="button">💾 Export Config</button>
+        <button id="clearLogBtn" type="button">🗑️ Clear Log</button>
+      </div>
+
+      <div class="status-bar">
+        <span id="connStatus"><span class="status-dot dot-off"></span> Disconnected</span>
+        <span id="sampleRate">—</span>
+        <span id="pinInfo">Waiting for serial header…</span>
+      </div>
+
+      <div class="settings-row">
+        <label>
+          Bend Threshold:
+          <div class="range-wrap">
+            <input type="range" id="bendThreshSlider" min="1" max="50" step="0.5" value="10" />
+            <span class="pct-val" id="bendThreshVal">10%</span>
+          </div>
+        </label>
+        <label>
+          Release Threshold:
+          <div class="range-wrap">
+            <input type="range" id="releaseThreshSlider" min="1" max="50" step="0.5" value="10" />
+            <span class="pct-val" id="releaseThreshVal">10%</span>
+          </div>
+        </label>
+        <label>Smoothing Window:
+          <input type="number" id="smoothWindow" value="10" min="3" max="100" />
+          <span>samples</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="panel cal-editor-panel" id="calEditorPanel">
+      <div class="cal-header-row">
+        <h2>📊 Calibration Thresholds Editor</h2>
+        <div class="cal-actions">
+          <button class="btn-apply" id="applyThreshBtn" type="button">⚡ Apply Changes</button>
+          <button class="btn-reset-all" id="resetAllBtn" type="button">↩️ Reset All</button>
+          <button class="btn-save-new" id="saveNewCalBtn" type="button">💾 Save New File</button>
+        </div>
+      </div>
+      <p class="sub">Original values from calibration file shown alongside editable fields. Modify thresholds and apply to live detection or save as a new calibration file.</p>
+      <div class="cal-table-wrap">
+        <table class="cal-table">
+          <thead>
+            <tr>
+              <th>Finger</th>
+              <th>GPIO</th>
+              <th>Orig Bend %</th>
+              <th>New Bend %</th>
+              <th>Orig Release %</th>
+              <th>New Release %</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="calTableBody"></tbody>
+        </table>
+      </div>
+      <div id="calStatus" class="cal-status"></div>
+    </div>
+
+    <div class="panel" id="handsPanel" style="display:none;">
+      <h2>🖐️ Finger States</h2>
+      <div id="handGrid" class="hand-grid"></div>
+    </div>
+
+    <div class="panel" id="logPanel" style="display:none;">
+      <h2>📜 Event Log</h2>
+      <p class="sub">State transitions logged with timestamps and % change.</p>
+      <div id="eventLog" class="event-log"></div>
+    </div>
+  </div>
+
+  <script>
+    /* ============================================================
+       STATE
+    ============================================================ */
+    const FINGER_ICONS = { 'Thumb': '👍', 'Index': '☝️', 'Middle': '🖕', 'Ring': '💍', 'Pinky': '🤙' };
+    const DEFAULT_NAMES = ['Thumb', 'Index', 'Middle', 'Ring', 'Pinky',
+      'L.Thumb', 'L.Index', 'L.Middle', 'L.Ring', 'L.Pinky'];
+
+    // GPIO → finger name for known pin assignments
+    const GPIO_PIN_NAMES = {
+      36: 'Thumb',   39: 'Index',   34: 'Middle',  35: 'Ring',   32: 'Pinky',
+      33: 'L.Thumb', 25: 'L.Index', 26: 'L.Middle', 27: 'L.Ring', 14: 'L.Pinky'
+    };
+
+    let originalCalData = null;  // stores the full original calibration JSON
+
+    const state = {
+      port: null, reader: null, lineBuffer: '', connected: false,
+      pins: [],
+      fingerNames: {},
+      bendThreshold: 10,      // global % increase = bending
+      releaseThreshold: 10,   // global % decrease = releasing
+      smoothWindow: 10,       // rolling average window
+      perFingerThresholds: {}, // per-pin overrides: { [pin]: { bendPct, releasePct } }
+      // Per-pin data
+      buffers: {},            // rolling window buffers
+      rollingAvg: {},         // current rolling average per pin
+      baseline: {},           // adaptive baseline per pin (resting resistance)
+      baselineCount: {},      // samples counted for baseline warmup
+      bendPeak: {},           // peak value during bending (for release detection)
+      currentPct: {},         // current % change from baseline per pin
+      currentState: {},       // 'waiting', 'stable', 'bending', 'releasing'
+      previousState: {},
+      sampleCount: 0, lastRateTime: Date.now(), currentRate: 0
+    };
+
+    const $ = id => document.getElementById(id);
+
+    function fmt(v) { return v == null || !Number.isFinite(v) ? '—' : v.toFixed(1); }
+
+    function timeStr() {
+      const d = new Date();
+      return d.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
+        + '.' + String(d.getMilliseconds()).padStart(3, '0');
+    }
+
+    function getIcon(name) {
+      for (const [k, v] of Object.entries(FINGER_ICONS))
+        if (name.toLowerCase().includes(k.toLowerCase())) return v;
+      return '🖐️';
+    }
+
+    function setConnStatus(t, ok) {
+      state.connected = ok;
+      $('connStatus').innerHTML = `<span class="status-dot ${ok?'dot-on':'dot-off'}"></span> ${t}`;
+    }
+
+    /* ============================================================
+       PERCENTAGE-BASED DETECTION — ADAPTIVE BASELINE
+    ============================================================ */
+    function updateRollingAvg(pin, value) {
+      const buf = state.buffers[pin] || (state.buffers[pin] = []);
+      buf.push(value);
+      while (buf.length > state.smoothWindow) buf.shift();
+      const avg = buf.reduce((a, b) => a + b, 0) / buf.length;
+      state.rollingAvg[pin] = avg;
+      return avg;
+    }
+
+    function updateBaseline(pin, value) {
+      if (state.baseline[pin] == null) {
+        state.baseline[pin] = value;
+        state.baselineCount[pin] = 1;
+        return;
+      }
+      state.baselineCount[pin] = (state.baselineCount[pin] || 0) + 1;
+      // Only adapt baseline when STABLE or WAITING (freeze during bend/release)
+      const s = state.currentState[pin];
+      if (!s || s === 'stable' || s === 'waiting') {
+        const alpha = 0.03; // slow EMA — adapts over ~33 samples
+        state.baseline[pin] = state.baseline[pin] * (1 - alpha) + value * alpha;
+      }
+    }
+
+    function classify(pin, value) {
+      const base = state.baseline[pin];
+      if (base == null || base === 0 || (state.baselineCount[pin] || 0) < 15) return 'waiting';
+
+      const pctFromBase = ((value - base) / base) * 100;
+      state.currentPct[pin] = pctFromBase;
+
+      const pft = state.perFingerThresholds[pin];
+      const bendTh = pft ? pft.bendPct : state.bendThreshold;
+      const relTh = pft ? pft.releasePct : state.releaseThreshold;
+
+      const prev = state.currentState[pin] || 'waiting';
+
+      // --- STATE: BENDING ---
+      if (prev === 'bending') {
+        // Track peak resistance during bend
+        if (!state.bendPeak[pin] || value > state.bendPeak[pin])
+          state.bendPeak[pin] = value;
+        // Check for release: drop from peak exceeds release threshold
+        const peak = state.bendPeak[pin];
+        const dropPct = ((peak - value) / peak) * 100;
+        if (dropPct >= relTh) return 'releasing';
+        // Hysteresis: stay bending if still elevated above 40% of bend threshold
+        if (pctFromBase >= bendTh * 0.4) return 'bending';
+        // Fell back to baseline without clear release
+        state.bendPeak[pin] = null;
+        return 'stable';
+      }
+
+      // --- STATE: RELEASING ---
+      if (prev === 'releasing') {
+        // Back to stable when close to baseline
+        if (Math.abs(pctFromBase) < bendTh * 0.5) {
+          state.bendPeak[pin] = null;
+          return 'stable';
+        }
+        // Could be starting a new bend
+        if (pctFromBase >= bendTh) {
+          state.bendPeak[pin] = value;
+          return 'bending';
+        }
+        return 'releasing';
+      }
+
+      // --- STATE: STABLE / WAITING → check for new bend ---
+      if (pctFromBase >= bendTh) {
+        state.bendPeak[pin] = value;
+        return 'bending';
+      }
+
+      return 'stable';
+    }
+    // Display order for known GPIO pins: right hand then left hand
+    const GPIO_DISPLAY_ORDER = [36, 39, 34, 35, 32, 33, 25, 26, 27, 14];
+
+    function buildFingerCards() {
+      const grid = $('handGrid');
+      grid.innerHTML = '';
+
+      // Always apply GPIO_PIN_NAMES for known pins (override generic config names)
+      state.pins.forEach((pin, i) => {
+        if (GPIO_PIN_NAMES[pin]) {
+          state.fingerNames[pin] = GPIO_PIN_NAMES[pin];
+        } else if (!(pin in state.fingerNames)) {
+          state.fingerNames[pin] = DEFAULT_NAMES[i] || `Sensor ${i + 1}`;
+        }
+      });
+
+      // Sort pins for display: known pins in hand order, unknown pins at end
+      const sortedPins = [...state.pins].sort((a, b) => {
+        const ia = GPIO_DISPLAY_ORDER.indexOf(a);
+        const ib = GPIO_DISPLAY_ORDER.indexOf(b);
+        if (ia !== -1 && ib !== -1) return ia - ib;
+        if (ia !== -1) return -1;
+        if (ib !== -1) return 1;
+        return a - b;
+      });
+
+      // Add "Right Hand" / "Left Hand" labels
+      const rightPins = new Set([36, 39, 34, 35, 32]);
+      const leftPins = new Set([33, 25, 26, 27, 14]);
+      let addedRightLabel = false, addedLeftLabel = false;
+
+      sortedPins.forEach(pin => {
+        // Insert hand group labels
+        if (!addedRightLabel && rightPins.has(pin)) {
+          addedRightLabel = true;
+          const label = document.createElement('div');
+          label.style.cssText = 'grid-column:1/-1; font-size:0.95rem; font-weight:700; color:#cdd8ee; padding:6px 0 2px; border-bottom:1px solid rgba(70,110,200,0.15); margin-bottom:4px;';
+          label.textContent = '🤚 Right Hand';
+          grid.appendChild(label);
+        }
+        if (!addedLeftLabel && leftPins.has(pin)) {
+          addedLeftLabel = true;
+          const label = document.createElement('div');
+          label.style.cssText = 'grid-column:1/-1; font-size:0.95rem; font-weight:700; color:#cdd8ee; padding:10px 0 2px; border-bottom:1px solid rgba(70,110,200,0.15); margin-bottom:4px;';
+          label.textContent = '🫲 Left Hand';
+          grid.appendChild(label);
+        }
+
+        const name = state.fingerNames[pin];
+        const icon = getIcon(name);
+
+        const card = document.createElement('div');
+        card.className = 'finger-card state-waiting';
+        card.id = `fcard-${pin}`;
+
+        // Per-finger or global threshold for bar display
+        const pft = state.perFingerThresholds[pin];
+        const pinBendTh = pft ? pft.bendPct : state.bendThreshold;
+        const pinRelTh = pft ? pft.releasePct : state.releaseThreshold;
+        const maxPct = Math.max(pinBendTh, pinRelTh) * 2;
+        const threshRightPct = 50 + (pinBendTh / maxPct) * 50;
+        const threshLeftPct = 50 - (pinRelTh / maxPct) * 50;
+
+        card.innerHTML = `
+          <div class="finger-icon">${icon}</div>
+          <div class="finger-name">${name}</div>
+          <div class="finger-gpio">GPIO ${pin}</div>
+          <div class="finger-state-badge badge-waiting" id="badge-${pin}">WAITING</div>
+          <div class="finger-live" id="flive-${pin}">Live: <strong>—</strong></div>
+          <div class="finger-avg" id="favg-${pin}">Avg: —</div>
+          <div class="finger-pct pct-flat" id="fpct-${pin}">0.0%</div>
+          <div class="finger-direction" id="fdir-${pin}">—</div>
+          <div class="pct-bar-wrap" id="pbar-${pin}">
+            <div class="pct-bar-center"></div>
+            <div class="pct-bar-thresh-right" style="left:${threshRightPct}%"></div>
+            <div class="pct-bar-thresh-left" style="left:${threshLeftPct}%"></div>
+            <div class="pct-bar-fill" id="pfill-${pin}"></div>
+          </div>
+        `;
+
+        grid.appendChild(card);
+      });
+
+      $('handsPanel').style.display = '';
+      $('logPanel').style.display = '';
+    }
+
+    /* ============================================================
+       UPDATE DISPLAY
+    ============================================================ */
+    function updateFinger(pin, value) {
+      const avg = updateRollingAvg(pin, value);
+      updateBaseline(pin, value);
+      const newState = classify(pin, value);
+      const prevState = state.currentState[pin];
+      state.currentState[pin] = newState;
+
+      const pct = state.currentPct[pin] || 0;
+
+      // Card class
+      const card = $(`fcard-${pin}`);
+      if (card) card.className = `finger-card state-${newState}`;
+
+      // Badge
+      const badge = $(`badge-${pin}`);
+      if (badge) {
+        const labels = { stable: 'STABLE', bending: 'BENDING ↑', releasing: 'RELEASING ↓', waiting: 'WAITING' };
+        badge.textContent = labels[newState] || 'WAITING';
+        badge.className = `finger-state-badge badge-${newState}`;
+      }
+
+      // Live value
+      const fl = $(`flive-${pin}`);
+      if (fl) fl.innerHTML = `Live: <strong>${fmt(value)} Ω</strong>`;
+
+      // Rolling average
+      const fa = $(`favg-${pin}`);
+      if (fa) fa.textContent = `Base: ${fmt(state.baseline[pin])} Ω`;
+
+      // Percentage change
+      const fp = $(`fpct-${pin}`);
+      if (fp) {
+        const sign = pct >= 0 ? '+' : '';
+        fp.textContent = `${sign}${pct.toFixed(1)}%`;
+        const pft2 = state.perFingerThresholds[pin];
+        const dispBendTh = pft2 ? pft2.bendPct : state.bendThreshold;
+        const dispRelTh = pft2 ? pft2.releasePct : state.releaseThreshold;
+        fp.className = `finger-pct ${pct >= dispBendTh ? 'pct-up' : pct <= -dispRelTh ? 'pct-down' : 'pct-flat'}`;
+      }
+
+      // Direction arrow
+      const fd = $(`fdir-${pin}`);
+      if (fd) {
+        if (newState === 'bending') fd.textContent = '📈 ↑';
+        else if (newState === 'releasing') fd.textContent = '📉 ↓';
+        else if (newState === 'stable') fd.textContent = '— stable';
+        else fd.textContent = '…';
+      }
+
+      // Percentage bar
+      const pft3 = state.perFingerThresholds[pin];
+      const maxPct = Math.max(pft3 ? pft3.bendPct : state.bendThreshold, pft3 ? pft3.releasePct : state.releaseThreshold) * 2;
+      const fill = $(`pfill-${pin}`);
+      if (fill) {
+        const absPct = Math.min(Math.abs(pct), maxPct);
+        const widthPct = (absPct / maxPct) * 50;
+
+        if (pct >= 0) {
+          fill.style.left = '50%';
+          fill.style.width = widthPct + '%';
+          fill.className = 'pct-bar-fill fill-up';
+        } else {
+          fill.style.left = (50 - widthPct) + '%';
+          fill.style.width = widthPct + '%';
+          fill.className = 'pct-bar-fill fill-down';
+        }
+      }
+
+      // Log state transitions
+      if (prevState && prevState !== newState && prevState !== 'waiting') {
+        const name = state.fingerNames[pin] || `GPIO ${pin}`;
+        const entry = document.createElement('div');
+        entry.className = 'log-entry';
+        const sign = pct >= 0 ? '+' : '';
+        entry.innerHTML = `
+          <span class="log-time">${timeStr()}</span>
+          <span class="log-finger">${name}</span>
+          <span class="log-event-${newState}">${prevState.toUpperCase()} → ${newState.toUpperCase()}</span>
+          <span style="color:var(--muted)">${sign}${pct.toFixed(1)}%  (${fmt(value)} Ω)</span>
+        `;
+        $('eventLog').prepend(entry);
+        while ($('eventLog').children.length > 500) $('eventLog').removeChild($('eventLog').lastChild);
+      }
+    }
+
+    /* ============================================================
+       CSV PARSING + SERIAL
+    ============================================================ */
+    function parseCsvLine(line) {
+      const clean = line.trim();
+      if (!clean || !clean.startsWith('DATA')) return;
+      const parts = clean.split(',');
+      if (parts.length < 2) return;
+
+      // Header line (contains pin labels like P32, P33, etc.)
+      if (parts[1] && /^[Pp]/.test(parts[1])) {
+        const parsed = parts.slice(1).map(s => Number(s.replace(/[^0-9]/g, ''))).filter(Number.isFinite);
+        if (parsed.length > 0 && JSON.stringify(parsed) !== JSON.stringify(state.pins)) {
+          state.pins = parsed;
+          $('pinInfo').textContent = `Pins: ${state.pins.join(', ')}`;
+          buildFingerCards();
+        }
+        return;
+      }
+
+      // Data line
+      const values = parts.slice(1).map(s => {
+        const t = s.trim().toLowerCase();
+        if (t === 'nan' || t === '') return null;
+        const n = Number(t);
+        return Number.isFinite(n) ? n : null;
+      });
+
+      // Auto-detect pins if no header
+      if (state.pins.length === 0) {
+        state.pins = Array.from({ length: values.length }, (_, i) => i + 1);
+        $('pinInfo').textContent = `No header — using channels 1..${values.length}`;
+        buildFingerCards();
+      }
+
+      // Sample rate
+      state.sampleCount++;
+      const now = Date.now();
+      if (now - state.lastRateTime >= 1000) {
+        state.currentRate = Math.round(state.sampleCount * 1000 / (now - state.lastRateTime));
+        state.sampleCount = 0; state.lastRateTime = now;
+        $('sampleRate').textContent = `${state.currentRate} sps`;
+      }
+
+      // Process each sensor
+      const count = Math.min(state.pins.length, values.length);
+      for (let i = 0; i < count; i++) {
+        if (values[i] !== null) updateFinger(state.pins[i], values[i]);
+      }
+    }
+
+    async function disconnectSerial() {
+      try { if (state.reader) { await state.reader.cancel(); state.reader.releaseLock(); state.reader = null; } } catch(e) {}
+      try { if (state.port) { await state.port.close(); state.port = null; } } catch(e) {}
+      setConnStatus('Disconnected', false);
+    }
+
+    async function connectSerial() {
+      if (!('serial' in navigator)) { alert('Web Serial not supported. Use Chrome or Edge.'); return; }
+      try {
+        state.port = await navigator.serial.requestPort();
+        await state.port.open({ baudRate: 115200 });
+        setConnStatus('Connected', true);
+        const dec = new TextDecoderStream();
+        const closed = state.port.readable.pipeTo(dec.writable);
+        state.reader = dec.readable.getReader();
+        while (true) {
+          const { value, done } = await state.reader.read();
+          if (done) break;
+          if (!value) continue;
+          state.lineBuffer += value;
+          const lines = state.lineBuffer.split(/\r?\n/);
+          state.lineBuffer = lines.pop() || '';
+          for (const l of lines) parseCsvLine(l);
+        }
+        await closed;
+      } catch (err) { setConnStatus(`Error: ${err.message}`, false); }
+      finally { await disconnectSerial(); }
+    }
+
+    /* ============================================================
+       EXPORT / IMPORT CONFIG
+    ============================================================ */
+    function exportConfig() {
+      const cfg = {
+        exportDate: new Date().toISOString(),
+        detectionMode: 'percentage',
+        bendThreshold: state.bendThreshold,
+        releaseThreshold: state.releaseThreshold,
+        smoothWindow: state.smoothWindow,
+        fingerNames: state.fingerNames
+      };
+      const blob = new Blob([JSON.stringify(cfg, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `gesture_config_${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function loadConfig(data) {
+      if (data.bendThreshold != null) {
+        state.bendThreshold = data.bendThreshold;
+        $('bendThreshSlider').value = data.bendThreshold;
+        $('bendThreshVal').textContent = data.bendThreshold + '%';
+      }
+      if (data.releaseThreshold != null) {
+        state.releaseThreshold = data.releaseThreshold;
+        $('releaseThreshSlider').value = data.releaseThreshold;
+        $('releaseThreshVal').textContent = data.releaseThreshold + '%';
+      }
+      if (data.smoothWindow != null) {
+        state.smoothWindow = data.smoothWindow;
+        $('smoothWindow').value = data.smoothWindow;
+      }
+      if (data.fingerNames) state.fingerNames = data.fingerNames;
+
+      // Load per-finger thresholds from calibration export
+      if (data.perFingerThresholds) {
+        state.perFingerThresholds = {};
+        Object.entries(data.perFingerThresholds).forEach(([pin, cfg]) => {
+          state.perFingerThresholds[pin] = {
+            bendPct: cfg.bendPct,
+            releasePct: cfg.releasePct
+          };
+        });
+      }
+
+      // Store original data for the calibration editor
+      originalCalData = JSON.parse(JSON.stringify(data));
+      buildCalibrationTable();
+
+      // If pins are available, rebuild cards with per-finger thresholds
+      if (state.pins.length > 0) buildFingerCards();
+    }
+
+    /* ============================================================
+       EVENT LISTENERS
+    ============================================================ */
+    $('connectBtn').addEventListener('click', connectSerial);
+    $('disconnectBtn').addEventListener('click', disconnectSerial);
+    $('clearLogBtn').addEventListener('click', () => { $('eventLog').innerHTML = ''; });
+    $('exportBtn').addEventListener('click', exportConfig);
+
+    $('loadCfg').addEventListener('change', e => {
+      if (!e.target.files.length) return;
+      const r = new FileReader();
+      r.onload = ev => {
+        try { loadConfig(JSON.parse(ev.target.result)); }
+        catch (err) { alert(`Parse error: ${err.message}`); }
+      };
+      r.readAsText(e.target.files[0]);
+    });
+
+    $('bendThreshSlider').addEventListener('input', e => {
+      state.bendThreshold = Number(e.target.value);
+      $('bendThreshVal').textContent = e.target.value + '%';
+    });
+
+    $('releaseThreshSlider').addEventListener('input', e => {
+      state.releaseThreshold = Number(e.target.value);
+      $('releaseThreshVal').textContent = e.target.value + '%';
+    });
+
+    $('smoothWindow').addEventListener('change', e => {
+      state.smoothWindow = Math.max(3, Number(e.target.value) || 10);
+    });
+
+    /* ============================================================
+       CALIBRATION EDITOR
+    ============================================================ */
+    function buildCalibrationTable() {
+      if (!originalCalData || !originalCalData.perFingerThresholds) {
+        $('calEditorPanel').classList.remove('visible');
+        return;
+      }
+      const tbody = $('calTableBody');
+      tbody.innerHTML = '';
+      const pft = originalCalData.perFingerThresholds;
+      const pins = originalCalData.pins || Object.keys(pft);
+
+      pins.forEach(pin => {
+        const cfg = pft[pin];
+        if (!cfg) return;
+        const name = cfg.name || state.fingerNames[pin] || `GPIO ${pin}`;
+        const origBend = cfg.bendPct;
+        const origRel = cfg.releasePct;
+
+        const tr = document.createElement('tr');
+        tr.dataset.pin = pin;
+        tr.innerHTML = `
+          <td class="finger-label">${getIcon(name)} ${name}</td>
+          <td class="gpio-label">${pin}</td>
+          <td><span class="cal-original">${origBend.toFixed(2)}%</span></td>
+          <td>
+            <input type="number" class="cal-input" id="calBend-${pin}"
+              value="${origBend.toFixed(2)}" step="0.1" min="0" max="99"
+              data-orig="${origBend}" />
+            <div class="cal-diff diff-none" id="calBendDiff-${pin}">—</div>
+          </td>
+          <td><span class="cal-original">${origRel.toFixed(2)}%</span></td>
+          <td>
+            <input type="number" class="cal-input" id="calRel-${pin}"
+              value="${origRel.toFixed(2)}" step="0.1" min="0" max="99"
+              data-orig="${origRel}" />
+            <div class="cal-diff diff-none" id="calRelDiff-${pin}">—</div>
+          </td>
+          <td><button class="btn-row-reset" data-pin="${pin}" title="Reset to original">↩️</button></td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      // Attach input listeners for diff display
+      tbody.querySelectorAll('.cal-input').forEach(inp => {
+        inp.addEventListener('input', () => updateCalDiff(inp));
+      });
+
+      // Row reset buttons
+      tbody.querySelectorAll('.btn-row-reset').forEach(btn => {
+        btn.addEventListener('click', () => resetCalRow(btn.dataset.pin));
+      });
+
+      $('calEditorPanel').classList.add('visible');
+      showCalStatus('', '');
+    }
+
+    function updateCalDiff(inp) {
+      const orig = parseFloat(inp.dataset.orig);
+      const val = parseFloat(inp.value);
+      const diff = val - orig;
+      const id = inp.id.replace('calBend-', 'calBendDiff-').replace('calRel-', 'calRelDiff-');
+      const el = $(id);
+      if (!el) return;
+
+      if (Math.abs(diff) < 0.005) {
+        el.textContent = '—';
+        el.className = 'cal-diff diff-none';
+        inp.classList.remove('modified');
+      } else {
+        const sign = diff > 0 ? '+' : '';
+        el.textContent = `${sign}${diff.toFixed(2)}`;
+        el.className = `cal-diff ${diff > 0 ? 'diff-up' : 'diff-down'}`;
+        inp.classList.add('modified');
+      }
+    }
+
+    function resetCalRow(pin) {
+      const pft = originalCalData.perFingerThresholds[pin];
+      if (!pft) return;
+      const bendInp = $(`calBend-${pin}`);
+      const relInp = $(`calRel-${pin}`);
+      if (bendInp) { bendInp.value = pft.bendPct.toFixed(2); updateCalDiff(bendInp); }
+      if (relInp) { relInp.value = pft.releasePct.toFixed(2); updateCalDiff(relInp); }
+    }
+
+    function applyEditedThresholds() {
+      if (!originalCalData || !originalCalData.perFingerThresholds) return;
+      const pins = originalCalData.pins || Object.keys(originalCalData.perFingerThresholds);
+      let count = 0;
+      pins.forEach(pin => {
+        const bendInp = $(`calBend-${pin}`);
+        const relInp = $(`calRel-${pin}`);
+        if (!bendInp || !relInp) return;
+        const bv = parseFloat(bendInp.value);
+        const rv = parseFloat(relInp.value);
+        if (Number.isFinite(bv) && Number.isFinite(rv)) {
+          state.perFingerThresholds[pin] = { bendPct: bv, releasePct: rv };
+          count++;
+        }
+      });
+      if (state.pins.length > 0) buildFingerCards();
+      showCalStatus(`⚡ Applied thresholds for ${count} fingers to live detection.`, 'success');
+    }
+
+    function resetAllCal() {
+      if (!originalCalData || !originalCalData.perFingerThresholds) return;
+      Object.keys(originalCalData.perFingerThresholds).forEach(pin => resetCalRow(pin));
+      showCalStatus('↩️ All values reset to original calibration.', 'info');
+    }
+
+    function saveNewCalibrationFile() {
+      if (!originalCalData) { alert('No calibration data loaded.'); return; }
+      const newData = JSON.parse(JSON.stringify(originalCalData));
+      const pins = newData.pins || Object.keys(newData.perFingerThresholds);
+
+      newData.exportDate = new Date().toISOString();
+      newData.editedFrom = originalCalData.exportDate || 'unknown';
+
+      pins.forEach(pin => {
+        const bendInp = $(`calBend-${pin}`);
+        const relInp = $(`calRel-${pin}`);
+        if (!bendInp || !relInp) return;
+        const bv = parseFloat(bendInp.value);
+        const rv = parseFloat(relInp.value);
+        if (Number.isFinite(bv) && Number.isFinite(rv)) {
+          if (newData.perFingerThresholds[pin]) {
+            newData.perFingerThresholds[pin].bendPct = bv;
+            newData.perFingerThresholds[pin].releasePct = rv;
+          }
+          if (newData.perFinger && newData.perFinger[pin]) {
+            newData.perFinger[pin].avgBendPct = bv;
+            newData.perFinger[pin].avgReleasePct = rv;
+          }
+        }
+      });
+
+      // Recalculate global averages
+      const allBends = [], allRels = [];
+      Object.values(newData.perFingerThresholds).forEach(v => {
+        allBends.push(v.bendPct);
+        allRels.push(v.releasePct);
+      });
+      if (allBends.length) newData.bendThreshold = +(allBends.reduce((a,b) => a+b, 0) / allBends.length).toFixed(1);
+      if (allRels.length) newData.releaseThreshold = +(allRels.reduce((a,b) => a+b, 0) / allRels.length).toFixed(1);
+
+      const blob = new Blob([JSON.stringify(newData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `pct_cal_edited_${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showCalStatus('💾 New calibration file saved!', 'success');
+    }
+
+    function showCalStatus(msg, type) {
+      const el = $('calStatus');
+      if (!msg) { el.className = 'cal-status'; el.style.display = 'none'; return; }
+      el.textContent = msg;
+      el.className = `cal-status ${type}`;
+      el.style.display = 'block';
+      setTimeout(() => { el.style.display = 'none'; }, 4000);
+    }
+
+    $('applyThreshBtn').addEventListener('click', applyEditedThresholds);
+    $('resetAllBtn').addEventListener('click', resetAllCal);
+    $('saveNewCalBtn').addEventListener('click', saveNewCalibrationFile);
+  </script>
+</body>
+</html>
+

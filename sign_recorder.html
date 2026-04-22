@@ -1,0 +1,562 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SmartGlove — Sign Recorder</title>
+  <meta name="description" content="Record sign language training data with guided batch workflow" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #060a14;
+      --bg-card: rgba(13, 19, 33, 0.9);
+      --bg-glass: rgba(255, 255, 255, 0.03);
+      --border: rgba(255, 255, 255, 0.07);
+      --text: #f1f5f9;
+      --text-sec: #94a3b8;
+      --text-muted: #64748b;
+      --accent: #6366f1;
+      --accent-glow: rgba(99, 102, 241, 0.25);
+      --success: #22c55e;
+      --success-bg: rgba(34,197,94,0.1);
+      --warning: #f59e0b;
+      --warning-bg: rgba(245,158,11,0.1);
+      --danger: #ef4444;
+      --danger-bg: rgba(239,68,68,0.1);
+      --recording: #ef4444;
+    }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+    body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at 15% 40%,rgba(99,102,241,.06) 0%,transparent 60%),radial-gradient(ellipse at 85% 60%,rgba(139,92,246,.04) 0%,transparent 50%);z-index:0}
+    .app{position:relative;z-index:1;max-width:1100px;margin:0 auto;padding:16px 14px 60px}
+    .card{background:var(--bg-card);backdrop-filter:blur(16px);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:10px}
+    .card-label{font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:10px}
+    .btn{display:inline-flex;align-items:center;gap:5px;padding:8px 16px;border:1px solid var(--border);border-radius:9px;background:var(--bg-glass);color:var(--text);font-family:inherit;font-size:.84rem;font-weight:500;cursor:pointer;transition:all .2s}
+    .btn:hover{background:rgba(255,255,255,.07);transform:translateY(-1px)}
+    .btn:disabled{opacity:.35;cursor:not-allowed;transform:none!important}
+    .btn-sm{padding:5px 10px;font-size:.78rem;border-radius:7px}
+    .btn-primary{background:linear-gradient(135deg,#6366f1,#4f46e5);border-color:rgba(99,102,241,.4);color:#fff}
+    .btn-success{background:linear-gradient(135deg,#22c55e,#16a34a);border-color:rgba(34,197,94,.4);color:#fff}
+    .btn-danger{background:linear-gradient(135deg,#ef4444,#dc2626);border-color:rgba(239,68,68,.3);color:#fff}
+    .btn-record{background:linear-gradient(135deg,#ef4444,#dc2626);border-color:rgba(239,68,68,.4);color:#fff;font-size:1rem;padding:12px 28px;font-weight:700}
+    .btn-record.recording{animation:recPulse 1s ease-in-out infinite}
+    @keyframes recPulse{0%,100%{box-shadow:0 0 8px rgba(239,68,68,.3)}50%{box-shadow:0 0 24px rgba(239,68,68,.5)}}
+    .hidden{display:none!important}
+    input,select{padding:7px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg-glass);color:var(--text);font-family:inherit;font-size:.88rem}
+    input:focus,select:focus{outline:none;border-color:var(--accent)}
+    option{background:var(--bg-card);color:var(--text)}
+
+    .header{text-align:center;margin-bottom:14px}
+    .header h1{font-size:1.6rem;font-weight:900;background:linear-gradient(135deg,#a78bfa,#6366f1,#3b82f6);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+    .header p{color:var(--text-sec);font-size:.82rem;margin-top:2px}
+
+    .conn-bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+    .status-dot{width:7px;height:7px;border-radius:50%;background:var(--danger);display:inline-block;margin-right:4px}
+    .status-dot.ok{background:var(--success);box-shadow:0 0 6px rgba(34,197,94,.5)}
+    .conn-text{font-size:.82rem;color:var(--text-sec);display:flex;align-items:center}
+    .badge{font-size:.72rem;background:var(--bg-glass);border:1px solid var(--border);border-radius:5px;padding:2px 7px;color:var(--text-muted);font-variant-numeric:tabular-nums}
+    .badge.ok{color:var(--success);border-color:rgba(34,197,94,.25)}
+    .badge.warn{color:var(--warning);border-color:rgba(245,158,11,.25)}
+
+    /* Sign list */
+    .sign-grid{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+    .sign-chip{padding:6px 14px;border:1px solid var(--border);border-radius:999px;font-size:.82rem;color:var(--text-sec);background:var(--bg-glass);cursor:pointer;transition:all .2s;position:relative}
+    .sign-chip:hover{border-color:rgba(255,255,255,.15)}
+    .sign-chip.active{border-color:var(--accent);color:#fff;background:rgba(99,102,241,.15);box-shadow:0 0 12px var(--accent-glow)}
+    .sign-chip .count{font-size:.65rem;background:rgba(34,197,94,.2);color:var(--success);border-radius:4px;padding:1px 5px;margin-left:4px;font-weight:600}
+    .sign-chip .count.zero{background:rgba(239,68,68,.15);color:var(--danger)}
+    .sign-chip .remove{position:absolute;top:-4px;right:-4px;width:16px;height:16px;border-radius:50%;background:var(--danger);color:#fff;font-size:.6rem;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .2s;cursor:pointer}
+    .sign-chip:hover .remove{opacity:1}
+
+    /* Add sign */
+    .add-sign-row{display:flex;gap:6px;align-items:center;margin-bottom:12px}
+    .add-sign-row input{width:140px;text-transform:uppercase}
+
+    /* Recording panel */
+    .rec-panel{text-align:center;padding:20px 10px}
+    .rec-sign-name{font-size:2.8rem;font-weight:900;color:var(--text);text-transform:capitalize;min-height:50px;text-shadow:0 0 30px var(--accent-glow)}
+    .rec-instruction{font-size:.92rem;color:var(--text-sec);margin:6px 0 16px}
+    .rec-countdown{font-size:4rem;font-weight:900;color:var(--warning);min-height:70px;line-height:1}
+    .rec-countdown.go{color:var(--recording);animation:recPulse .5s ease-in-out infinite}
+    .rec-progress{margin-top:12px}
+    .rec-bar-track{height:8px;background:rgba(255,255,255,.06);border-radius:4px;overflow:hidden}
+    .rec-bar-fill{height:100%;border-radius:4px;transition:width .1s}
+    .rec-bar-fill.countdown{background:var(--warning)}
+    .rec-bar-fill.recording{background:var(--recording)}
+    .rec-stats{font-size:.82rem;color:var(--text-sec);margin-top:6px;font-variant-numeric:tabular-nums}
+    .rec-batch-dots{display:flex;gap:4px;justify-content:center;margin-top:10px}
+    .rec-batch-dot{width:10px;height:10px;border-radius:50%;background:rgba(255,255,255,.08);transition:all .2s}
+    .rec-batch-dot.done{background:var(--success)}
+    .rec-batch-dot.current{background:var(--recording);box-shadow:0 0 8px rgba(239,68,68,.4)}
+
+    /* Live fingers */
+    .live-cols{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+    .hand-label{font-size:.7rem;text-transform:uppercase;letter-spacing:.7px;color:var(--text-muted);margin-bottom:5px}
+    .finger-row{display:flex;align-items:center;gap:5px;padding:2px 0;font-size:.78rem}
+    .f-name{width:55px;color:var(--text-sec)}
+    .f-bar{flex:1;height:7px;background:rgba(255,255,255,.05);border-radius:4px;overflow:hidden}
+    .f-bar-fill{height:100%;border-radius:4px;transition:width .1s;background:linear-gradient(90deg,#6366f1,#818cf8)}
+    .f-val{width:34px;text-align:right;font-weight:600;font-variant-numeric:tabular-nums;font-size:.74rem}
+
+    /* Dataset table */
+    .ds-table{width:100%;border-collapse:separate;border-spacing:0 3px;font-size:.82rem}
+    .ds-table th{text-align:left;font-size:.68rem;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);padding:3px 8px;font-weight:600}
+    .ds-table td{background:var(--bg-glass);padding:7px 8px;color:var(--text);font-variant-numeric:tabular-nums}
+    .ds-table tr td:first-child{border-radius:6px 0 0 6px;font-weight:600;text-transform:capitalize}
+    .ds-table tr td:last-child{border-radius:0 6px 6px 0}
+    .quality-good{color:var(--success)}
+    .quality-warn{color:var(--warning)}
+    .quality-bad{color:var(--danger)}
+    .target-bar{width:80px;height:6px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden;display:inline-block;vertical-align:middle;margin-left:6px}
+    .target-bar-fill{height:100%;border-radius:3px;background:var(--success);transition:width .3s}
+
+    @media(max-width:640px){.live-cols{grid-template-columns:1fr}.rec-sign-name{font-size:2rem}}
+  </style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <h1>📝 SmartGlove Sign Recorder</h1>
+    <p>Record training data — multiple batches per sign</p>
+  </div>
+
+  <!-- Connection -->
+  <div class="card">
+    <div class="conn-bar">
+      <button id="connectBtn" class="btn btn-primary">🔌 Connect</button>
+      <button id="disconnectBtn" class="btn" disabled>Disconnect</button>
+      <button id="loadCalBtn" class="btn">📂 Calibration</button>
+      <input type="file" id="calInput" accept=".json" class="hidden"/>
+      <span class="conn-text"><span id="statusDot" class="status-dot"></span><span id="connText">Disconnected</span></span>
+      <span id="spsBadge" class="badge hidden">0 sps</span>
+      <span id="calBadge" class="badge warn">⚠ No cal</span>
+    </div>
+  </div>
+
+  <!-- Sign Management -->
+  <div class="card">
+    <div class="card-label">🏷️ Signs to Record</div>
+    <div class="add-sign-row">
+      <input type="text" id="newSignInput" placeholder="e.g. GOOD" maxlength="20"/>
+      <select id="signTypeSelect" style="width:130px">
+        <option value="either_hand">✋ Either Hand</option>
+        <option value="both_hands">🙌 Both Hands</option>
+      </select>
+      <button id="addSignBtn" class="btn btn-sm btn-primary">+ Add Sign</button>
+      <span style="font-size:.78rem;color:var(--text-muted);margin-left:8px">Target: <strong id="targetDisplay" style="color:var(--text)">200</strong> samples each</span>
+    </div>
+    <div style="font-size:.72rem;color:var(--text-muted);margin-bottom:8px">
+      <strong>✋ Either Hand</strong> = can be done with left OR right (model auto-mirrors data) &nbsp;|&nbsp;
+      <strong>🙌 Both Hands</strong> = requires both hands together
+    </div>
+    <div class="sign-grid" id="signGrid"></div>
+    <div style="font-size:.78rem;color:var(--text-muted)" id="signSummary">Add signs to start recording</div>
+  </div>
+
+  <!-- Recording Panel -->
+  <div class="card" id="recCard">
+    <div class="card-label">🎙️ Record</div>
+    <div class="rec-panel" id="recPanel">
+      <div id="recIdleView">
+        <div class="rec-sign-name" style="color:var(--text-muted);font-size:1.2rem">Select a sign above to start</div>
+        <div class="rec-instruction">Click a sign chip, then press Record</div>
+        <div style="display:flex;gap:8px;justify-content:center;align-items:end;margin-top:12px;flex-wrap:wrap">
+          <div><label style="font-size:.7rem;color:var(--text-muted);display:block">Hand</label>
+            <select id="handSelect" style="width:90px">
+              <option value="right">🖐 Right</option>
+              <option value="left">🤚 Left</option>
+              <option value="both">🙌 Both</option>
+            </select>
+          </div>
+          <div><label style="font-size:.7rem;color:var(--text-muted);display:block">Hold (sec)</label><input type="number" id="holdTime" value="3" min="1" max="10" style="width:60px"/></div>
+          <div><label style="font-size:.7rem;color:var(--text-muted);display:block">Reps/batch</label><input type="number" id="repsInput" value="5" min="1" max="20" style="width:60px"/></div>
+          <button id="recordBtn" class="btn btn-record" disabled>⏺ RECORD BATCH</button>
+        </div>
+      </div>
+      <div id="recActiveView" class="hidden">
+        <div class="rec-sign-name" id="recSignName">GOOD</div>
+        <div class="rec-hand-badge" id="recHandBadge" style="font-size:.82rem;color:var(--accent);margin-bottom:4px"></div>
+        <div class="rec-instruction" id="recInstruction">Get ready...</div>
+        <div class="rec-countdown" id="recCountdown"></div>
+        <div class="rec-progress">
+          <div class="rec-bar-track"><div class="rec-bar-fill" id="recBarFill" style="width:0"></div></div>
+          <div class="rec-stats" id="recStats"></div>
+        </div>
+        <div class="rec-batch-dots" id="batchDots"></div>
+        <button id="stopBtn" class="btn btn-sm" style="margin-top:10px">⏹ Stop</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Live Fingers -->
+  <div class="card">
+    <div class="card-label">📊 Live Normalized Readings</div>
+    <div class="live-cols">
+      <div><div class="hand-label">🖐️ Right Hand</div><div id="rightFingers"></div></div>
+      <div><div class="hand-label">🤚 Left Hand</div><div id="leftFingers"></div></div>
+    </div>
+  </div>
+
+  <!-- Dataset Overview -->
+  <div class="card">
+    <div class="card-label">📊 Dataset Overview</div>
+    <div style="font-size:.85rem;color:var(--text-sec);margin-bottom:8px">
+      Total: <strong id="totalSamples" style="color:var(--text)">0</strong> samples |
+      Signs: <strong id="totalSigns" style="color:var(--text)">0</strong> |
+      Features: <strong style="color:var(--text)">22</strong>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="ds-table"><thead><tr><th>Sign</th><th>Hand</th><th>Samples</th><th>Batches</th><th>Progress</th><th>Avg Gyro</th><th>Quality</th></tr></thead>
+      <tbody id="dsBody"></tbody></table>
+    </div>
+    <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
+      <button id="exportCsvBtn" class="btn btn-success" disabled>📤 Export CSV</button>
+      <button id="exportJsonBtn" class="btn" disabled>📤 Export JSON</button>
+      <button id="clearBtn" class="btn btn-danger" disabled>🗑️ Clear All</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const FINGERS=[
+  {label:'RT',name:'R.Thumb',hand:'right'},{label:'RI',name:'R.Index',hand:'right'},
+  {label:'RM',name:'R.Mid',hand:'right'},{label:'RR',name:'R.Ring',hand:'right'},
+  {label:'RP',name:'R.Pink',hand:'right'},{label:'LT',name:'L.Thumb',hand:'left'},
+  {label:'LI',name:'L.Index',hand:'left'},{label:'LM',name:'L.Mid',hand:'left'},
+  {label:'LR',name:'L.Ring',hand:'left'},{label:'LP',name:'L.Pink',hand:'left'},
+];
+const IMU_CH=['aX1','aY1','aZ1','gX1','gY1','gZ1','aX2','aY2','aZ2','gX2','gY2','gZ2'];
+const TARGET_SAMPLES=200;
+const $=id=>document.getElementById(id);
+
+const S={
+  port:null,reader:null,lineBuffer:'',connected:false,
+  cal:null,flex:{},imu:{},spsCounter:0,
+  signs:[],         // [{name:'GOOD', type:'either_hand'}, ...]
+  activeSign:null,   // current sign name selected
+  recording:false,
+  recSamples:[],
+  dataset:[],        // {label, hand, features:[22], gMag, batch, ts}
+  batchCounts:{},    // signName -> count of batches
+  abortRec:false,
+};
+
+// ── Build finger UI ──
+['right','left'].forEach(h=>{
+  const el=$(h==='right'?'rightFingers':'leftFingers');
+  el.innerHTML='';
+  FINGERS.filter(f=>f.hand===h).forEach(f=>{
+    const r=document.createElement('div');r.className='finger-row';
+    r.innerHTML=`<span class="f-name">${f.name}</span><div class="f-bar"><div class="f-bar-fill" id="bar-${f.label}"></div></div><span class="f-val" id="v-${f.label}">—</span>`;
+    el.appendChild(r);
+  });
+});
+
+// ── Calibration ──
+$('loadCalBtn').addEventListener('click',()=>$('calInput').click());
+$('calInput').addEventListener('change',async e=>{
+  const f=e.target.files[0];if(!f)return;
+  try{S.cal=JSON.parse(await f.text());$('calBadge').textContent='✅ Cal';$('calBadge').className='badge ok';updateRecBtn();}
+  catch(err){alert('Bad JSON: '+err.message);}
+});
+
+function normFlex(label,raw){
+  if(!S.cal||!S.cal.fingers[label])return raw/4095;
+  const f=S.cal.fingers[label];
+  const rest=f.restResistance??f.rest??0;
+  const bent=f.bentResistance??f.bent??0;
+  if(bent===rest)return 0;
+  return Math.max(0,Math.min(1,(raw-rest)/(bent-rest)));
+}
+function correctGyro(ch,raw){
+  if(!S.cal)return raw;
+  const mpu=ch.endsWith('1')?'mpu1':'mpu2';
+  const off=S.cal.imu?.[mpu]?.gyroOffset?.[ch.slice(0,2)]??0;
+  return raw-off;
+}
+
+// ── Sign Management ──
+function addSign(name){
+  name=name.trim().toUpperCase();
+  if(!name||S.signs.find(s=>s.name===name))return;
+  const type=$('signTypeSelect').value; // 'either_hand' or 'both_hands'
+  S.signs.push({name,type});
+  S.batchCounts[name]=S.batchCounts[name]||0;
+  renderSigns();
+}
+function removeSign(name){
+  S.signs=S.signs.filter(s=>s.name!==name);
+  if(S.activeSign===name)S.activeSign=null;
+  renderSigns();updateRecBtn();
+}
+function selectSign(name){
+  S.activeSign=name;
+  renderSigns();updateRecBtn();
+  $('recIdleView').querySelector('.rec-sign-name').textContent=name;
+  $('recIdleView').querySelector('.rec-sign-name').style.color='var(--text)';
+  $('recIdleView').querySelector('.rec-sign-name').style.fontSize='2.8rem';
+  const hand=$('handSelect').value;
+  const handLabel=hand==='right'?'🖐 Right hand':hand==='left'?'🤚 Left hand':'🙌 Both hands';
+  $('recIdleView').querySelector('.rec-instruction').textContent=`Hold "${name}" with ${handLabel}, then press Record`;
+}
+function renderSigns(){
+  const grid=$('signGrid');grid.innerHTML='';
+  S.signs.forEach(s=>{
+    const chip=document.createElement('div');
+    chip.className='sign-chip'+(S.activeSign===s.name?' active':'');
+    // Count per hand
+    const rCount=S.dataset.filter(d=>d.label===s.name&&d.hand==='right').length;
+    const lCount=S.dataset.filter(d=>d.label===s.name&&d.hand==='left').length;
+    const bCount=S.dataset.filter(d=>d.label===s.name&&d.hand==='both').length;
+    const total=rCount+lCount+bCount;
+    let handInfo='';
+    if(rCount)handInfo+=`R:${rCount} `;
+    if(lCount)handInfo+=`L:${lCount} `;
+    if(bCount)handInfo+=`B:${bCount}`;
+    const typeLabel=s.type==='both_hands'?'🙌':'✋';
+    chip.innerHTML=`<span style="font-size:.65rem;margin-right:2px">${typeLabel}</span>${s.name}<span class="count${total===0?' zero':''}">${total}</span>${handInfo?`<span style="font-size:.6rem;color:var(--text-muted);margin-left:3px">${handInfo.trim()}</span>`:''}<span class="remove" title="Remove">✕</span>`;
+    chip.addEventListener('click',e=>{
+      if(e.target.classList.contains('remove')){removeSign(s.name);return;}
+      selectSign(s.name);
+    });
+    grid.appendChild(chip);
+  });
+  const total=S.dataset.length;
+  const signCount=new Set(S.dataset.map(d=>d.label)).size;
+  $('totalSamples').textContent=total;
+  $('totalSigns').textContent=signCount;
+  $('signSummary').textContent=S.signs.length===0?'Add signs to start recording':
+    `${S.signs.length} signs configured • Click one to select`;
+}
+
+$('addSignBtn').addEventListener('click',()=>{
+  addSign($('newSignInput').value);
+  $('newSignInput').value='';
+});
+$('newSignInput').addEventListener('keydown',e=>{
+  if(e.key==='Enter'){addSign($('newSignInput').value);$('newSignInput').value='';}
+});
+
+function updateRecBtn(){
+  $('recordBtn').disabled=!S.connected||!S.activeSign||S.recording;
+}
+
+// ── Parse serial ──
+function parseLine(line){
+  const c=line.trim();
+  if(!c.startsWith('DATA'))return;
+  const parts=c.split(',');if(parts.length<2||/\(/.test(parts[1]))return;
+  const tokens=parts.slice(1);
+  let imuStart=-1;
+  for(let i=0;i<tokens.length;i++){if(!tokens[i].includes(':')){imuStart=i;break;}}
+  (imuStart===-1?tokens:tokens.slice(0,imuStart)).forEach(t=>{
+    const ci=t.indexOf(':');if(ci===-1)return;
+    const v=Number(t.slice(ci+1).trim());
+    if(Number.isFinite(v))S.flex[t.slice(0,ci).trim()]=v;
+  });
+  if(imuStart!==-1){
+    tokens.slice(imuStart).forEach((t,i)=>{
+      if(i<IMU_CH.length){const v=Number(t.trim());S.imu[IMU_CH[i]]=Number.isFinite(v)?v:NaN;}
+    });
+  }
+  S.spsCounter++;
+  if(S.recording){
+    const features=captureVector();
+    const gMag=Math.sqrt(features[13]**2+features[14]**2+features[15]**2);
+    S.recSamples.push({features,gMag,ts:Date.now()});
+  }
+}
+
+function captureVector(){
+  const flex=FINGERS.map(f=>normFlex(f.label,S.flex[f.label]??0));
+  const accel=['aX1','aY1','aZ1','aX2','aY2','aZ2'].map(c=>S.imu[c]??0);
+  const gyro=['gX1','gY1','gZ1','gX2','gY2','gZ2'].map(c=>correctGyro(c,S.imu[c]??0));
+  return[...flex,...accel,...gyro];
+}
+
+// ── UI update ──
+let raf;
+function updateUI(){
+  FINGERS.forEach(f=>{
+    const raw=S.flex[f.label];if(raw===undefined)return;
+    const n=normFlex(f.label,raw);
+    $(`v-${f.label}`).textContent=Math.round(n*100)+'%';
+    const bar=$(`bar-${f.label}`);
+    bar.style.width=(n*100)+'%';
+    bar.style.background=n>.5?'linear-gradient(90deg,#f59e0b,#ef4444)':'linear-gradient(90deg,#6366f1,#818cf8)';
+  });
+  raf=requestAnimationFrame(updateUI);
+}
+
+// ── Serial ──
+async function connect(){
+  if(!('serial' in navigator)){alert('Use Chrome/Edge');return;}
+  try{
+    S.port=await navigator.serial.requestPort();
+    await S.port.open({baudRate:115200});
+    S.connected=true;
+    $('statusDot').classList.add('ok');$('connText').textContent='Connected';
+    $('spsBadge').classList.remove('hidden');
+    $('connectBtn').disabled=true;$('disconnectBtn').disabled=false;
+    updateRecBtn();
+    const spsInt=setInterval(()=>{$('spsBadge').textContent=S.spsCounter+' sps';S.spsCounter=0;},1000);
+    raf=requestAnimationFrame(updateUI);
+    const dec=new TextDecoderStream();
+    S.port.readable.pipeTo(dec.writable);
+    S.reader=dec.readable.getReader();
+    while(true){const{value,done}=await S.reader.read();if(done)break;
+      S.lineBuffer+=value;const lines=S.lineBuffer.split(/\r?\n/);S.lineBuffer=lines.pop()||'';
+      lines.forEach(parseLine);
+    }
+    clearInterval(spsInt);
+  }catch(e){$('connText').textContent='Error: '+e.message;}
+  finally{await disconnect();}
+}
+async function disconnect(){
+  try{if(S.reader){await S.reader.cancel();S.reader.releaseLock();S.reader=null;}}catch(e){}
+  try{if(S.port){await S.port.close();S.port=null;}}catch(e){}
+  S.connected=false;$('statusDot').classList.remove('ok');$('connText').textContent='Disconnected';
+  $('spsBadge').classList.add('hidden');$('connectBtn').disabled=false;$('disconnectBtn').disabled=true;
+  updateRecBtn();if(raf)cancelAnimationFrame(raf);
+}
+$('connectBtn').addEventListener('click',connect);
+$('disconnectBtn').addEventListener('click',disconnect);
+
+// ── Recording ──
+function wait(ms){return new Promise(r=>setTimeout(r,ms));}
+
+async function recordBatch(){
+  const label=S.activeSign;
+  if(!label)return;
+  const holdSec=Number($('holdTime').value)||3;
+  const reps=Number($('repsInput').value)||5;
+  const hand=$('handSelect').value;
+  const batchNum=(S.batchCounts[label]||0)+1;
+  const handEmoji=hand==='right'?'🖐':hand==='left'?'🤚':'🙌';
+
+  S.recording=false;S.abortRec=false;
+  $('recordBtn').disabled=true;
+  $('recIdleView').classList.add('hidden');
+  $('recActiveView').classList.remove('hidden');
+  $('recSignName').textContent=label;
+  $('recHandBadge').textContent=`${handEmoji} ${hand==='right'?'Right hand':hand==='left'?'Left hand':'Both hands'}`;
+
+  // Build batch dots
+  $('batchDots').innerHTML='';
+  for(let i=0;i<reps;i++){
+    const d=document.createElement('div');d.className='rec-batch-dot';d.id=`bdot-${i}`;
+    $('batchDots').appendChild(d);
+  }
+
+  let totalCaptured=0;
+  for(let rep=0;rep<reps;rep++){
+    if(S.abortRec)break;
+    $(`bdot-${rep}`).classList.add('current');
+
+    // Countdown 3-2-1
+    for(let c=3;c>0;c--){
+      if(S.abortRec)break;
+      $('recCountdown').textContent=c;$('recCountdown').className='rec-countdown';
+      $('recInstruction').textContent=`Rep ${rep+1}/${reps} — Get ready...`;
+      $('recBarFill').className='rec-bar-fill countdown';$('recBarFill').style.width='0';
+      await wait(1000);
+    }
+    if(S.abortRec)break;
+
+    // Record
+    $('recCountdown').textContent='●REC';$('recCountdown').className='rec-countdown go';
+    $('recBarFill').className='rec-bar-fill recording';
+    S.recSamples=[];S.recording=true;
+    const start=Date.now();const dur=holdSec*1000;
+    while(Date.now()-start<dur&&!S.abortRec){
+      const elapsed=Date.now()-start;
+      $('recBarFill').style.width=(elapsed/dur*100)+'%';
+      $('recInstruction').textContent=`Recording rep ${rep+1}/${reps}... ${((dur-elapsed)/1000).toFixed(1)}s`;
+      $('recStats').textContent=`${S.recSamples.length} samples captured this rep | Batch #${batchNum}`;
+      await wait(50);
+    }
+    S.recording=false;
+
+    // Save samples
+    const signObj=S.signs.find(s=>s.name===label);
+    const signType=signObj?signObj.type:'either_hand';
+    const captured=S.recSamples.map(s=>({
+      label,hand,type:signType,features:s.features,gMag:s.gMag,batch:batchNum,ts:s.ts
+    }));
+    S.dataset.push(...captured);
+    totalCaptured+=captured.length;
+
+    $(`bdot-${rep}`).classList.remove('current');
+    $(`bdot-${rep}`).classList.add('done');
+
+    if(rep<reps-1&&!S.abortRec)await wait(600);
+  }
+
+  S.batchCounts[label]=batchNum;
+  $('recCountdown').textContent='✓';$('recCountdown').className='rec-countdown';
+  $('recCountdown').style.color='var(--success)';
+  $('recInstruction').textContent=`Batch #${batchNum} done! ${totalCaptured} samples captured.`;
+
+  await wait(1200);
+  $('recActiveView').classList.add('hidden');
+  $('recIdleView').classList.remove('hidden');
+  $('recCountdown').style.color='';
+  updateRecBtn();renderSigns();updateDatasetTable();
+}
+
+$('recordBtn').addEventListener('click',recordBatch);
+$('stopBtn').addEventListener('click',()=>{S.abortRec=true;S.recording=false;});
+
+// ── Dataset table ──
+function updateDatasetTable(){
+  // Group by label+hand
+  const groups={};
+  S.dataset.forEach(s=>{
+    const key=s.label+'|'+s.hand;
+    if(!groups[key])groups[key]={label:s.label,hand:s.hand,count:0,gMagSum:0,batches:new Set()};
+    groups[key].count++;groups[key].gMagSum+=s.gMag;groups[key].batches.add(s.batch);
+  });
+  const tbody=$('dsBody');tbody.innerHTML='';
+  const handEmojis={right:'🖐 R',left:'🤚 L',both:'🙌 Both'};
+  Object.values(groups).sort((a,b)=>a.label.localeCompare(b.label)||a.hand.localeCompare(b.hand)).forEach(info=>{
+    const avgGyro=(info.gMagSum/info.count).toFixed(1);
+    const quality=avgGyro<10?'good':avgGyro<25?'warn':'bad';
+    const qualityText=quality==='good'?'✅ Steady':quality==='warn'?'⚠️ Some motion':'❌ Shaky';
+    const pct=Math.min(100,info.count/TARGET_SAMPLES*100);
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${info.label}</td><td>${handEmojis[info.hand]||info.hand}</td><td>${info.count}</td><td>${info.batches.size}</td>
+      <td>${info.count}/${TARGET_SAMPLES} <div class="target-bar"><div class="target-bar-fill" style="width:${pct}%"></div></div></td>
+      <td>${avgGyro}°/s</td><td class="quality-${quality}">${qualityText}</td>`;
+    tbody.appendChild(tr);
+  });
+  const hasData=S.dataset.length>0;
+  $('exportCsvBtn').disabled=!hasData;$('exportJsonBtn').disabled=!hasData;$('clearBtn').disabled=!hasData;
+}
+
+// ── Export CSV ──
+$('exportCsvBtn').addEventListener('click',()=>{
+  const hdr='label,hand_mode,recorded_hand,R.Thumb,R.Index,R.Middle,R.Ring,R.Pinky,L.Thumb,L.Index,L.Middle,L.Ring,L.Pinky,aX1,aY1,aZ1,gX1,gY1,gZ1,aX2,aY2,aZ2,gX2,gY2,gZ2';
+  const rows=S.dataset.map(s=>s.label+','+(s.type||'either_hand')+','+(s.hand||'right')+','+s.features.map(v=>v.toFixed(4)).join(','));
+  dl(hdr+'\n'+rows.join('\n'),`smartglove_dataset_${Date.now()}.csv`,'text/csv');
+});
+$('exportJsonBtn').addEventListener('click',()=>{
+  const json=JSON.stringify({exportDate:new Date().toISOString(),totalSamples:S.dataset.length,
+    signTypes:Object.fromEntries(S.signs.map(s=>[s.name,s.type])),
+    features:['R.Thumb','R.Index','R.Middle','R.Ring','R.Pinky','L.Thumb','L.Index','L.Middle','L.Ring','L.Pinky','aX1','aY1','aZ1','gX1','gY1','gZ1','aX2','aY2','aZ2','gX2','gY2','gZ2'],
+    samples:S.dataset.map(s=>({label:s.label,hand_mode:s.type||'either_hand',recorded_hand:s.hand||'right',features:s.features}))
+  },null,2);
+  dl(json,`smartglove_dataset_${Date.now()}.json`,'application/json');
+});
+function dl(content,name,type){
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([content],{type}));
+  a.download=name;a.click();URL.revokeObjectURL(a.href);
+}
+$('clearBtn').addEventListener('click',()=>{
+  if(!confirm('Clear ALL recorded data?'))return;
+  S.dataset=[];S.batchCounts={};renderSigns();updateDatasetTable();
+});
+</script>
+</body>
+</html>
+
+

@@ -1,0 +1,1307 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SmartGlove — Calibrator</title>
+  <meta name="description" content="Calibrate your SmartGlove flex sensor glove for personalized sign language recognition" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg-primary: #0a0e1a;
+      --bg-secondary: #111827;
+      --bg-card: rgba(17, 24, 39, 0.85);
+      --bg-glass: rgba(255, 255, 255, 0.04);
+      --border: rgba(255, 255, 255, 0.08);
+      --border-active: rgba(99, 102, 241, 0.5);
+      --text-primary: #f1f5f9;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+      --accent: #6366f1;
+      --accent-glow: rgba(99, 102, 241, 0.3);
+      --success: #22c55e;
+      --success-bg: rgba(34, 197, 94, 0.12);
+      --warning: #f59e0b;
+      --warning-bg: rgba(245, 158, 11, 0.12);
+      --danger: #ef4444;
+      --danger-bg: rgba(239, 68, 68, 0.12);
+      --info: #3b82f6;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Animated background */
+    body::before {
+      content: '';
+      position: fixed;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(ellipse at 20% 50%, rgba(99, 102, 241, 0.08) 0%, transparent 50%),
+                  radial-gradient(ellipse at 80% 20%, rgba(139, 92, 246, 0.06) 0%, transparent 50%),
+                  radial-gradient(ellipse at 60% 80%, rgba(34, 197, 94, 0.04) 0%, transparent 50%);
+      animation: bgDrift 20s ease-in-out infinite alternate;
+      z-index: 0;
+    }
+
+    @keyframes bgDrift {
+      0% { transform: translate(0, 0) rotate(0deg); }
+      100% { transform: translate(-5%, 3%) rotate(3deg); }
+    }
+
+    .app {
+      position: relative;
+      z-index: 1;
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 24px 20px 60px;
+    }
+
+    /* ─── Header ─── */
+    .header {
+      text-align: center;
+      margin-bottom: 28px;
+    }
+    .header h1 {
+      font-size: 1.8rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, #a78bfa, #6366f1, #3b82f6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -0.5px;
+    }
+    .header p {
+      color: var(--text-secondary);
+      font-size: 0.92rem;
+      margin-top: 6px;
+    }
+
+    /* ─── Cards ─── */
+    .card {
+      background: var(--bg-card);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 16px;
+      transition: border-color 0.3s, box-shadow 0.3s;
+    }
+    .card:hover {
+      border-color: rgba(255,255,255,0.12);
+    }
+    .card-title {
+      font-size: 0.82rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      color: var(--text-muted);
+      margin-bottom: 14px;
+    }
+
+    /* ─── Connection Bar ─── */
+    .conn-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 9px 18px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--bg-glass);
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 0.88rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn:hover {
+      background: rgba(255,255,255,0.08);
+      border-color: rgba(255,255,255,0.18);
+      transform: translateY(-1px);
+    }
+    .btn:active { transform: translateY(0); }
+    .btn-primary {
+      background: linear-gradient(135deg, #6366f1, #4f46e5);
+      border-color: rgba(99,102,241,0.5);
+      color: #fff;
+      box-shadow: 0 4px 15px var(--accent-glow);
+    }
+    .btn-primary:hover {
+      background: linear-gradient(135deg, #818cf8, #6366f1);
+      box-shadow: 0 6px 20px var(--accent-glow);
+    }
+    .btn-success {
+      background: linear-gradient(135deg, #22c55e, #16a34a);
+      border-color: rgba(34,197,94,0.5);
+      color: #fff;
+    }
+    .btn-danger {
+      background: linear-gradient(135deg, #ef4444, #dc2626);
+      border-color: rgba(239,68,68,0.4);
+      color: #fff;
+    }
+    .btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      transform: none !important;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--danger);
+      display: inline-block;
+      margin-right: 6px;
+      transition: background 0.3s;
+    }
+    .status-dot.ok {
+      background: var(--success);
+      box-shadow: 0 0 8px rgba(34,197,94,0.5);
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 4px rgba(34,197,94,0.3); }
+      50% { box-shadow: 0 0 12px rgba(34,197,94,0.6); }
+    }
+
+    .conn-status {
+      font-size: 0.88rem;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+    }
+
+    .sps-badge {
+      font-size: 0.78rem;
+      background: var(--bg-glass);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 3px 8px;
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* ─── Step Progress ─── */
+    .steps-track {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 20px;
+    }
+    .step-indicator {
+      flex: 1;
+      background: var(--bg-glass);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 8px;
+      text-align: center;
+      transition: all 0.4s;
+      cursor: default;
+      position: relative;
+      overflow: hidden;
+    }
+    .step-indicator .num {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      transition: color 0.3s;
+    }
+    .step-indicator .label {
+      font-size: 0.68rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-top: 2px;
+      transition: color 0.3s;
+    }
+    .step-indicator.active {
+      border-color: var(--accent);
+      background: rgba(99,102,241,0.1);
+      box-shadow: 0 0 20px var(--accent-glow);
+    }
+    .step-indicator.active .num { color: var(--accent); }
+    .step-indicator.active .label { color: #a5b4fc; }
+    .step-indicator.done {
+      border-color: rgba(34,197,94,0.3);
+      background: var(--success-bg);
+    }
+    .step-indicator.done .num { color: var(--success); }
+    .step-indicator.done .label { color: #86efac; }
+    .step-indicator.done .num::after {
+      content: ' ✓';
+      font-size: 0.9rem;
+    }
+
+    /* ─── Calibration Panel ─── */
+    .cal-panel {
+      min-height: 260px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+    }
+
+    .step-icon {
+      font-size: 3.5rem;
+      margin-bottom: 12px;
+      animation: bounce 1.5s ease-in-out infinite;
+    }
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-8px); }
+    }
+
+    .step-title {
+      font-size: 1.3rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .step-desc {
+      color: var(--text-secondary);
+      font-size: 0.92rem;
+      max-width: 480px;
+      line-height: 1.5;
+      margin-bottom: 18px;
+    }
+
+    /* ─── Progress Ring ─── */
+    .progress-ring-wrap {
+      position: relative;
+      width: 100px;
+      height: 100px;
+      margin: 16px auto;
+    }
+    .progress-ring {
+      transform: rotate(-90deg);
+    }
+    .progress-ring circle {
+      fill: none;
+      stroke-width: 6;
+    }
+    .progress-ring .bg-ring {
+      stroke: rgba(255,255,255,0.06);
+    }
+    .progress-ring .fg-ring {
+      stroke: var(--accent);
+      stroke-linecap: round;
+      transition: stroke-dashoffset 0.15s;
+      filter: drop-shadow(0 0 6px var(--accent-glow));
+    }
+    .progress-text {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 1.4rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* ─── Live Sensors Grid ─── */
+    .sensors-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+      gap: 8px;
+    }
+    .sensor-cell {
+      background: var(--bg-glass);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 8px 10px;
+      text-align: center;
+      transition: border-color 0.3s;
+    }
+    .sensor-cell.highlight {
+      border-color: var(--accent);
+      background: rgba(99,102,241,0.08);
+    }
+    .sensor-name {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+    .sensor-val {
+      font-size: 1.05rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      color: var(--text-primary);
+      transition: color 0.2s;
+    }
+    .sensor-bar {
+      height: 3px;
+      background: rgba(255,255,255,0.06);
+      border-radius: 2px;
+      margin-top: 5px;
+      overflow: hidden;
+    }
+    .sensor-bar-fill {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 2px;
+      transition: width 0.15s;
+      width: 0%;
+    }
+
+    /* ─── IMU Live ─── */
+    .imu-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 12px;
+    }
+    .imu-box {
+      background: var(--bg-glass);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+    }
+    .imu-box h4 {
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+    .imu-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.82rem;
+      padding: 2px 0;
+      font-variant-numeric: tabular-nums;
+    }
+    .imu-label { color: var(--text-secondary); }
+    .imu-value { color: var(--text-primary); font-weight: 600; }
+
+    /* ─── Calibration Results ─── */
+    .results-table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0 4px;
+      font-size: 0.85rem;
+    }
+    .results-table th {
+      text-align: left;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--text-muted);
+      padding: 4px 10px;
+      font-weight: 600;
+    }
+    .results-table td {
+      background: var(--bg-glass);
+      padding: 8px 10px;
+      color: var(--text-primary);
+      font-variant-numeric: tabular-nums;
+    }
+    .results-table tr td:first-child {
+      border-radius: 8px 0 0 8px;
+      font-weight: 600;
+    }
+    .results-table tr td:last-child {
+      border-radius: 0 8px 8px 0;
+    }
+
+    .hidden { display: none !important; }
+
+    /* ─── Finger selector for step 3 ─── */
+    .finger-selector {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: center;
+      margin: 12px 0;
+    }
+    .finger-chip {
+      padding: 6px 14px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      font-size: 0.82rem;
+      color: var(--text-secondary);
+      background: var(--bg-glass);
+      cursor: default;
+      transition: all 0.3s;
+    }
+    .finger-chip.active {
+      border-color: var(--accent);
+      color: #fff;
+      background: rgba(99,102,241,0.2);
+    }
+    .finger-chip.done {
+      border-color: rgba(34,197,94,0.4);
+      color: #86efac;
+      background: var(--success-bg);
+    }
+
+    /* ─── Orientation images ─── */
+    .orient-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin: 12px 0;
+    }
+    .orient-card {
+      background: var(--bg-glass);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px;
+      text-align: center;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      transition: all 0.3s;
+      cursor: default;
+    }
+    .orient-card .orient-icon {
+      font-size: 2rem;
+      display: block;
+      margin-bottom: 4px;
+    }
+    .orient-card.active {
+      border-color: var(--accent);
+      background: rgba(99,102,241,0.1);
+      color: #a5b4fc;
+    }
+    .orient-card.done {
+      border-color: rgba(34,197,94,0.3);
+      background: var(--success-bg);
+      color: #86efac;
+    }
+
+    @media (max-width: 640px) {
+      .imu-grid { grid-template-columns: 1fr; }
+      .orient-grid { grid-template-columns: repeat(2, 1fr); }
+      .sensors-grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- Header -->
+    <div class="header">
+      <h1>🤟 SmartGlove Calibrator</h1>
+      <p>Personalize your flex sensor ranges + IMU orientation in ~60 seconds</p>
+    </div>
+
+    <!-- Connection -->
+    <div class="card">
+      <div class="conn-bar">
+        <button id="connectBtn" class="btn btn-primary">🔌 Connect Serial</button>
+        <button id="disconnectBtn" class="btn" disabled>Disconnect</button>
+        <span class="conn-status"><span id="statusDot" class="status-dot"></span> <span id="connText">Disconnected</span></span>
+        <span id="spsBadge" class="sps-badge hidden">0 sps</span>
+        <span id="mpuStatus" class="sps-badge hidden">MPU: --</span>
+      </div>
+    </div>
+
+    <!-- Step Progress Track -->
+    <div class="steps-track" id="stepsTrack">
+      <div class="step-indicator" data-step="1">
+        <div class="num">1</div>
+        <div class="label">Open Hand</div>
+      </div>
+      <div class="step-indicator" data-step="2">
+        <div class="num">2</div>
+        <div class="label">Fist</div>
+      </div>
+      <div class="step-indicator" data-step="3">
+        <div class="num">3</div>
+        <div class="label">Fingers</div>
+      </div>
+      <div class="step-indicator" data-step="4">
+        <div class="num">4</div>
+        <div class="label">Orientation</div>
+      </div>
+    </div>
+
+    <!-- Calibration Panel -->
+    <div class="card" id="calCard">
+      <div class="cal-panel" id="calPanel">
+        <!-- Idle state -->
+        <div id="idleView">
+          <div class="step-icon">✋</div>
+          <div class="step-title">Ready to Calibrate</div>
+          <div class="step-desc">Connect your ESP32 via Serial, then start calibration. This captures your finger flex ranges and MPU6050 orientation references for accurate gesture recognition.</div>
+          <button id="startBtn" class="btn btn-primary" disabled>▶️ Start Calibration</button>
+        </div>
+
+        <!-- Active step view -->
+        <div id="activeView" class="hidden">
+          <div class="step-icon" id="activeIcon">✋</div>
+          <div class="step-title" id="activeTitle">Step 1</div>
+          <div class="step-desc" id="activeDesc">Instructions...</div>
+
+          <!-- Progress ring -->
+          <div class="progress-ring-wrap">
+            <svg class="progress-ring" width="100" height="100">
+              <circle class="bg-ring" cx="50" cy="50" r="44" />
+              <circle class="fg-ring" id="progressRing" cx="50" cy="50" r="44"
+                      stroke-dasharray="276.5" stroke-dashoffset="276.5" />
+            </svg>
+            <div class="progress-text" id="progressText">5s</div>
+          </div>
+
+          <!-- Finger selector for Step 3 -->
+          <div id="fingerSelector" class="finger-selector hidden"></div>
+
+          <!-- Orientation cards for Step 4 -->
+          <div id="orientGrid" class="orient-grid hidden"></div>
+
+          <button id="skipStepBtn" class="btn" style="margin-top:10px">⏭ Skip Step</button>
+        </div>
+
+        <!-- Complete view -->
+        <div id="completeView" class="hidden">
+          <div class="step-icon" style="animation:none">🎉</div>
+          <div class="step-title">Calibration Complete!</div>
+          <div class="step-desc">All 4 steps done. Review results below and export your calibration file.</div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;">
+            <button id="exportBtn" class="btn btn-success">📤 Export JSON</button>
+            <button id="recalibrateBtn" class="btn">🔄 Recalibrate</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Live Sensor Display -->
+    <div class="card" id="liveCard">
+      <div class="card-title">📊 Live Sensor Readings</div>
+      <div class="sensors-grid" id="sensorsGrid"></div>
+      <div class="imu-grid" id="imuGrid">
+        <div class="imu-box">
+          <h4>🖐️ Right Hand IMU (0x69)</h4>
+          <div class="imu-row"><span class="imu-label">Accel X</span> <span class="imu-value" id="imu-aX1">—</span></div>
+          <div class="imu-row"><span class="imu-label">Accel Y</span> <span class="imu-value" id="imu-aY1">—</span></div>
+          <div class="imu-row"><span class="imu-label">Accel Z</span> <span class="imu-value" id="imu-aZ1">—</span></div>
+          <div class="imu-row"><span class="imu-label">Gyro X</span> <span class="imu-value" id="imu-gX1">—</span></div>
+          <div class="imu-row"><span class="imu-label">Gyro Y</span> <span class="imu-value" id="imu-gY1">—</span></div>
+          <div class="imu-row"><span class="imu-label">Gyro Z</span> <span class="imu-value" id="imu-gZ1">—</span></div>
+          <div class="imu-row" style="margin-top:4px;border-top:1px solid var(--border);padding-top:4px">
+            <span class="imu-label">🧭 Orientation</span>
+            <span class="imu-value" id="imu-orient1" style="color:var(--accent)">—</span>
+          </div>
+        </div>
+        <div class="imu-box">
+          <h4>🤚 Left Hand IMU (0x68)</h4>
+          <div class="imu-row"><span class="imu-label">Accel X</span> <span class="imu-value" id="imu-aX2">—</span></div>
+          <div class="imu-row"><span class="imu-label">Accel Y</span> <span class="imu-value" id="imu-aY2">—</span></div>
+          <div class="imu-row"><span class="imu-label">Accel Z</span> <span class="imu-value" id="imu-aZ2">—</span></div>
+          <div class="imu-row"><span class="imu-label">Gyro X</span> <span class="imu-value" id="imu-gX2">—</span></div>
+          <div class="imu-row"><span class="imu-label">Gyro Y</span> <span class="imu-value" id="imu-gY2">—</span></div>
+          <div class="imu-row"><span class="imu-label">Gyro Z</span> <span class="imu-value" id="imu-gZ2">—</span></div>
+          <div class="imu-row" style="margin-top:4px;border-top:1px solid var(--border);padding-top:4px">
+            <span class="imu-label">🧭 Orientation</span>
+            <span class="imu-value" id="imu-orient2" style="color:var(--accent)">—</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Results Table (shown after calibration) -->
+    <div class="card hidden" id="resultsCard">
+      <div class="card-title">📋 Calibration Results</div>
+      <div style="overflow-x:auto">
+        <table class="results-table" id="resultsTable">
+          <thead>
+            <tr><th>Finger</th><th>GPIO</th><th>Rest</th><th>Bent</th><th>Range</th><th>Open %</th><th>Bent %</th><th>Status</th></tr>
+          </thead>
+          <tbody id="resultsBody"></tbody>
+        </table>
+      </div>
+      <div id="imuResults" style="margin-top:16px"></div>
+    </div>
+  </div>
+
+  <script>
+    // ─── FINGER CONFIG (matches firmware) ───
+    const FINGERS = [
+      { label: 'RT', name: 'R.Thumb',  gpio: 15 },
+      { label: 'RI', name: 'R.Index',  gpio: 4  },
+      { label: 'RM', name: 'R.Middle', gpio: 34 },
+      { label: 'RR', name: 'R.Ring',   gpio: 35 },
+      { label: 'RP', name: 'R.Pinky',  gpio: 32 },
+      { label: 'LT', name: 'L.Thumb',  gpio: 33 },
+      { label: 'LI', name: 'L.Index',  gpio: 25 },
+      { label: 'LM', name: 'L.Middle', gpio: 26 },
+      { label: 'LR', name: 'L.Ring',   gpio: 27 },
+      { label: 'LP', name: 'L.Pinky',  gpio: 14 },
+    ];
+
+    const IMU_CHANNELS = ['aX1','aY1','aZ1','gX1','gY1','gZ1','aX2','aY2','aZ2','gX2','gY2','gZ2'];
+
+    const ORIENTATIONS = [
+      { key: 'palmDown', icon: '🫳', label: 'Palm Down',    desc: 'Hand flat, palm facing the table' },
+      { key: 'palmUp',   icon: '🫴', label: 'Palm Up',      desc: 'Hand flat, palm facing the ceiling' },
+      { key: 'sideways', icon: '🤚', label: 'Sideways',     desc: 'Edge of hand down, thumb pointing up' },
+      { key: 'forward',  icon: '✋', label: 'Palm Forward', desc: 'Palm facing forward, like a stop sign' },
+    ];
+
+    // ─── STATE ───
+    const state = {
+      port: null,
+      reader: null,
+      lineBuffer: '',
+      connected: false,
+      latestFlex: {},      // label → raw value
+      latestIMU: {},       // aX1, aY1, etc → number
+      spsCounter: 0,
+      spsDisplay: 0,
+      spsInterval: null,
+
+      // Calibration
+      currentStep: 0,      // 0=idle, 1-4=steps, 5=done
+      recording: false,
+      recordingSamples: [], // collected during a timed capture
+      recordingTimer: null,
+      recordingStart: 0,
+      recordingDuration: 5000, // ms
+
+      // Calibration Data
+      cal: {
+        fingers: {},       // label → { rest, bent, range }
+        imu: {
+          mpu1: { gyroOffset: {}, orientations: {} },
+          mpu2: { gyroOffset: {}, orientations: {} },
+        }
+      },
+
+      // Step 3: individual finger tracking
+      fingerIndex: 0,
+
+      // Step 4: orientation tracking
+      orientIndex: 0,
+    };
+
+    // ─── DOM REFS ───
+    const $ = id => document.getElementById(id);
+    const connectBtn = $('connectBtn');
+    const disconnectBtn = $('disconnectBtn');
+    const startBtn = $('startBtn');
+    const statusDot = $('statusDot');
+    const connText = $('connText');
+    const spsBadge = $('spsBadge');
+    const mpuStatus = $('mpuStatus');
+    const sensorsGrid = $('sensorsGrid');
+    const progressRing = $('progressRing');
+    const progressText = $('progressText');
+
+    // ─── INIT SENSOR GRID ───
+    function buildSensorGrid() {
+      sensorsGrid.innerHTML = '';
+      FINGERS.forEach(f => {
+        const cell = document.createElement('div');
+        cell.className = 'sensor-cell';
+        cell.id = `cell-${f.label}`;
+        cell.innerHTML = `
+          <div class="sensor-name">${f.name}</div>
+          <div class="sensor-val" id="val-${f.label}">—</div>
+          <div class="sensor-bar"><div class="sensor-bar-fill" id="bar-${f.label}"></div></div>
+        `;
+        sensorsGrid.appendChild(cell);
+      });
+    }
+    buildSensorGrid();
+
+    // ─── SERIAL PARSING ───
+    function parseLine(line) {
+      const clean = line.trim();
+      if (!clean.startsWith('DATA')) return;
+      const parts = clean.split(',');
+      if (parts.length < 2) return;
+
+      // Skip header lines
+      if (parts[1] && /^[A-Z]{2}\(/.test(parts[1].trim())) return;
+
+      // Parse flex (NAME:VALUE) + IMU (plain numbers)
+      const tokens = parts.slice(1);
+      let imuStart = -1;
+      for (let i = 0; i < tokens.length; i++) {
+        if (!tokens[i].includes(':')) { imuStart = i; break; }
+      }
+
+      // Flex
+      const flexTokens = imuStart === -1 ? tokens : tokens.slice(0, imuStart);
+      flexTokens.forEach(tok => {
+        const ci = tok.indexOf(':');
+        if (ci === -1) return;
+        const label = tok.slice(0, ci).trim();
+        const raw = tok.slice(ci + 1).trim();
+        const v = Number(raw);
+        if (Number.isFinite(v)) {
+          state.latestFlex[label] = v;
+        }
+      });
+
+      // IMU
+      if (imuStart !== -1) {
+        const imuTokens = tokens.slice(imuStart);
+        imuTokens.forEach((tok, idx) => {
+          if (idx < IMU_CHANNELS.length) {
+            const v = Number(tok.trim());
+            state.latestIMU[IMU_CHANNELS[idx]] = Number.isFinite(v) ? v : NaN;
+          }
+        });
+      }
+
+      state.spsCounter++;
+
+      // If recording, accumulate sample
+      if (state.recording) {
+        state.recordingSamples.push({
+          flex: { ...state.latestFlex },
+          imu: { ...state.latestIMU },
+          ts: Date.now()
+        });
+      }
+    }
+
+    // ─── NORMALIZE HELPER ───
+    function normalizeFlexValue(label, raw) {
+      const cal = state.cal.fingers[label];
+      if (!cal || cal.rest === undefined || cal.range === undefined || cal.range === 0) return null;
+      const norm = (raw - cal.rest) / (cal.bent - cal.rest);
+      return Math.max(0, Math.min(1, norm));
+    }
+
+    function hasCalibration() {
+      return state.currentStep >= 3 || state.currentStep === 0 && Object.values(state.cal.fingers).some(f => f.range > 0);
+    }
+
+    // ─── UI UPDATES (30fps) ───
+    let uiRaf = null;
+    function updateUI() {
+      // Flex values — show % after calibration, raw before
+      const calibrated = hasCalibration();
+      FINGERS.forEach(f => {
+        const valEl = $(`val-${f.label}`);
+        const barEl = $(`bar-${f.label}`);
+        if (!valEl) return;
+        const v = state.latestFlex[f.label];
+        if (v !== undefined && v !== null) {
+          if (calibrated) {
+            const norm = normalizeFlexValue(f.label, v);
+            if (norm !== null) {
+              valEl.textContent = Math.round(norm * 100) + '%';
+              barEl.style.width = (norm * 100) + '%';
+              barEl.style.background = norm > 0.5 ? 'var(--warning)' : 'var(--accent)';
+            } else {
+              valEl.textContent = Math.round(v);
+              barEl.style.width = (v / 4095 * 100) + '%';
+            }
+          } else {
+            valEl.textContent = Math.round(v);
+            const pct = Math.min(100, Math.max(0, (v / 4095) * 100));
+            barEl.style.width = pct + '%';
+          }
+        }
+      });
+
+      // IMU values
+      IMU_CHANNELS.forEach(ch => {
+        const el = $(`imu-${ch}`);
+        if (!el) return;
+        const v = state.latestIMU[ch];
+        if (v !== undefined && !isNaN(v)) {
+          el.textContent = v.toFixed(3);
+        } else {
+          el.textContent = 'nan';
+          el.style.color = 'var(--danger)';
+        }
+      });
+
+      // Orientation detection
+      updateOrientationDisplay('1', state.latestIMU.aX1, state.latestIMU.aY1, state.latestIMU.aZ1);
+      updateOrientationDisplay('2', state.latestIMU.aX2, state.latestIMU.aY2, state.latestIMU.aZ2);
+
+      // Progress ring update
+      if (state.recording) {
+        const elapsed = Date.now() - state.recordingStart;
+        const pct = Math.min(1, elapsed / state.recordingDuration);
+        const circumference = 2 * Math.PI * 44;
+        progressRing.style.strokeDashoffset = circumference * (1 - pct);
+        const remain = Math.max(0, (state.recordingDuration - elapsed) / 1000);
+        progressText.textContent = remain.toFixed(1) + 's';
+      }
+
+      uiRaf = requestAnimationFrame(updateUI);
+    }
+
+    function detectOrientation(aX, aY, aZ) {
+      if (aX === undefined || aY === undefined || aZ === undefined) return '—';
+      if (isNaN(aX) || isNaN(aY) || isNaN(aZ)) return 'NO DATA';
+      const abs = { x: Math.abs(aX), y: Math.abs(aY), z: Math.abs(aZ) };
+      const dominant = Math.max(abs.x, abs.y, abs.z);
+      if (dominant < 0.5) return 'TILTED';
+      if (dominant === abs.y && aY < -0.6) return '🫳 PALM DOWN';
+      if (dominant === abs.y && aY > 0.6)  return '🫴 PALM UP';
+      if (dominant === abs.x && aX > 0.6)  return '🤚 SIDEWAYS ↑';
+      if (dominant === abs.x && aX < -0.6) return '🤚 SIDEWAYS ↓';
+      if (dominant === abs.z && aZ > 0.6)  return '✋ FORWARD';
+      if (dominant === abs.z && aZ < -0.6) return '✋ BACKWARD';
+      return 'TILTED';
+    }
+
+    function updateOrientationDisplay(suffix, aX, aY, aZ) {
+      const el = $(`imu-orient${suffix}`);
+      if (el) el.textContent = detectOrientation(aX, aY, aZ);
+    }
+
+    // ─── SPS COUNTER ───
+    function startSPS() {
+      state.spsInterval = setInterval(() => {
+        state.spsDisplay = state.spsCounter;
+        state.spsCounter = 0;
+        spsBadge.textContent = state.spsDisplay + ' sps';
+      }, 1000);
+    }
+    function stopSPS() {
+      clearInterval(state.spsInterval);
+    }
+
+    // ─── SERIAL CONNECTION ───
+    async function connect() {
+      if (!('serial' in navigator)) {
+        alert('Web Serial not supported. Use Chrome or Edge desktop.');
+        return;
+      }
+      try {
+        state.port = await navigator.serial.requestPort();
+        await state.port.open({ baudRate: 115200 });
+        state.connected = true;
+
+        statusDot.classList.add('ok');
+        connText.textContent = 'Connected';
+        spsBadge.classList.remove('hidden');
+        mpuStatus.classList.remove('hidden');
+        connectBtn.disabled = true;
+        disconnectBtn.disabled = false;
+        startBtn.disabled = false;
+
+        startSPS();
+        uiRaf = requestAnimationFrame(updateUI);
+
+        const decoder = new TextDecoderStream();
+        const readableClosed = state.port.readable.pipeTo(decoder.writable);
+        state.reader = decoder.readable.getReader();
+
+        while (true) {
+          const { value, done } = await state.reader.read();
+          if (done) break;
+          if (!value) continue;
+          state.lineBuffer += value;
+          const lines = state.lineBuffer.split(/\r?\n/);
+          state.lineBuffer = lines.pop() || '';
+          for (const line of lines) {
+            // Check for MPU status lines
+            if (line.includes('MPU Right')) {
+              const ok = line.includes('OK');
+              mpuStatus.textContent = `MPU R: ${ok ? '✅' : '❌'}`;
+            } else if (line.includes('MPU Left')) {
+              const ok = line.includes('OK');
+              const prev = mpuStatus.textContent;
+              mpuStatus.textContent = prev.replace('MPU', '').trim() + ` | L: ${ok ? '✅' : '❌'}`;
+            }
+            parseLine(line);
+          }
+        }
+        await readableClosed;
+      } catch (e) {
+        console.error('Serial error:', e);
+        connText.textContent = `Error: ${e.message}`;
+      } finally {
+        await disconnect();
+      }
+    }
+
+    async function disconnect() {
+      try {
+        if (state.reader) { await state.reader.cancel(); state.reader.releaseLock(); state.reader = null; }
+      } catch(e) {}
+      try {
+        if (state.port) { await state.port.close(); state.port = null; }
+      } catch(e) {}
+
+      state.connected = false;
+      statusDot.classList.remove('ok');
+      connText.textContent = 'Disconnected';
+      spsBadge.classList.add('hidden');
+      connectBtn.disabled = false;
+      disconnectBtn.disabled = true;
+      startBtn.disabled = true;
+      stopSPS();
+      if (uiRaf) cancelAnimationFrame(uiRaf);
+    }
+
+    connectBtn.addEventListener('click', connect);
+    disconnectBtn.addEventListener('click', disconnect);
+
+    // ─── CALIBRATION ENGINE ───
+    function setStep(n) {
+      state.currentStep = n;
+      document.querySelectorAll('.step-indicator').forEach(el => {
+        const s = parseInt(el.dataset.step);
+        el.classList.toggle('active', s === n);
+        el.classList.toggle('done', s < n);
+      });
+
+      $('idleView').classList.toggle('hidden', n > 0);
+      $('activeView').classList.toggle('hidden', n === 0 || n > 4);
+      $('completeView').classList.toggle('hidden', n !== 5);
+      $('fingerSelector').classList.add('hidden');
+      $('orientGrid').classList.add('hidden');
+
+      if (n >= 1 && n <= 4) {
+        setupStepUI(n);
+      }
+      if (n === 5) {
+        showResults();
+      }
+    }
+
+    const STEP_CONFIG = {
+      1: { icon: '✋', title: 'Step 1: Open Hand', desc: 'Hold both hands FLAT and OPEN on the table. Stay completely still for 5 seconds.', duration: 5000 },
+      2: { icon: '✊', title: 'Step 2: Full Fist', desc: 'Curl ALL fingers into a tight fist on both hands. Squeeze hard and hold still for 5 seconds.', duration: 5000 },
+      3: { icon: '☝️', title: 'Step 3: Individual Fingers', desc: 'Bend ONLY the highlighted finger. Keep all others straight. 5 seconds per finger.', duration: 5000 },
+      4: { icon: '🧭', title: 'Step 4: Hand Orientations', desc: 'Hold both hands in the shown position. 5 seconds per orientation.', duration: 5000 },
+    };
+
+    function setupStepUI(step) {
+      const cfg = STEP_CONFIG[step];
+      $('activeIcon').textContent = cfg.icon;
+      $('activeTitle').textContent = cfg.title;
+      $('activeDesc').textContent = cfg.desc;
+      state.recordingDuration = cfg.duration;
+
+      if (step === 3) {
+        state.fingerIndex = 0;
+        buildFingerSelector();
+        $('fingerSelector').classList.remove('hidden');
+        startFingerCapture();
+      } else if (step === 4) {
+        state.orientIndex = 0;
+        buildOrientGrid();
+        $('orientGrid').classList.remove('hidden');
+        startOrientCapture();
+      } else {
+        startTimedCapture(() => processStep(step));
+      }
+    }
+
+    // ─── TIMED CAPTURE ───
+    function startTimedCapture(onDone) {
+      state.recording = true;
+      state.recordingSamples = [];
+      state.recordingStart = Date.now();
+
+      const circumference = 2 * Math.PI * 44;
+      progressRing.style.strokeDashoffset = circumference;
+
+      state.recordingTimer = setTimeout(() => {
+        state.recording = false;
+        progressRing.style.strokeDashoffset = '0';
+        progressText.textContent = '✓';
+        onDone();
+      }, state.recordingDuration);
+    }
+
+    function stopCapture() {
+      state.recording = false;
+      clearTimeout(state.recordingTimer);
+    }
+
+    // ─── PROCESS STEPS ───
+    function processStep(step) {
+      const samples = state.recordingSamples;
+      if (samples.length === 0) {
+        alert('No data captured! Check your serial connection.');
+        return;
+      }
+
+      if (step === 1) {
+        // Store rest resistance + gyro offset
+        FINGERS.forEach(f => {
+          const vals = samples.map(s => s.flex[f.label]).filter(v => v !== undefined);
+          if (vals.length > 0) {
+            const avg = vals.reduce((a,b) => a+b, 0) / vals.length;
+            if (!state.cal.fingers[f.label]) state.cal.fingers[f.label] = {};
+            state.cal.fingers[f.label].rest = avg;
+            state.cal.fingers[f.label].name = f.name;
+            state.cal.fingers[f.label].gpio = f.gpio;
+          }
+        });
+
+        // Gyro offsets (should be ~0 when still)
+        ['gX1','gY1','gZ1'].forEach(ch => {
+          const vals = samples.map(s => s.imu[ch]).filter(v => !isNaN(v));
+          if (vals.length > 0) {
+            state.cal.imu.mpu1.gyroOffset[ch.slice(0,2)] = vals.reduce((a,b)=>a+b,0) / vals.length;
+          }
+        });
+        ['gX2','gY2','gZ2'].forEach(ch => {
+          const vals = samples.map(s => s.imu[ch]).filter(v => !isNaN(v));
+          if (vals.length > 0) {
+            state.cal.imu.mpu2.gyroOffset[ch.slice(0,2)] = vals.reduce((a,b)=>a+b,0) / vals.length;
+          }
+        });
+
+        setTimeout(() => setStep(2), 500);
+      }
+
+      if (step === 2) {
+        // Store bent resistance
+        FINGERS.forEach(f => {
+          const vals = samples.map(s => s.flex[f.label]).filter(v => v !== undefined);
+          if (vals.length > 0) {
+            const avg = vals.reduce((a,b) => a+b, 0) / vals.length;
+            if (!state.cal.fingers[f.label]) state.cal.fingers[f.label] = {};
+            state.cal.fingers[f.label].bent = avg;
+            state.cal.fingers[f.label].range = Math.abs(avg - (state.cal.fingers[f.label].rest || 0));
+          }
+        });
+
+        setTimeout(() => setStep(3), 500);
+      }
+    }
+
+    // ─── STEP 3: Individual Fingers ───
+    function buildFingerSelector() {
+      const sel = $('fingerSelector');
+      sel.innerHTML = '';
+      FINGERS.forEach((f, i) => {
+        const chip = document.createElement('span');
+        chip.className = 'finger-chip';
+        chip.id = `fchip-${i}`;
+        chip.textContent = f.name;
+        sel.appendChild(chip);
+      });
+    }
+
+    function startFingerCapture() {
+      if (state.fingerIndex >= FINGERS.length) {
+        setTimeout(() => setStep(4), 500);
+        return;
+      }
+
+      // Highlight current
+      FINGERS.forEach((_, i) => {
+        const chip = $(`fchip-${i}`);
+        chip.classList.toggle('active', i === state.fingerIndex);
+        chip.classList.toggle('done', i < state.fingerIndex);
+      });
+
+      const f = FINGERS[state.fingerIndex];
+      $('activeDesc').textContent = `Bend ONLY your ${f.name}. Keep all other fingers straight.`;
+      $('sensorsGrid').querySelector(`#cell-${f.label}`)?.classList.add('highlight');
+
+      startTimedCapture(() => {
+        // Save isolated bent value
+        const samples = state.recordingSamples;
+        const vals = samples.map(s => s.flex[f.label]).filter(v => v !== undefined);
+        if (vals.length > 0) {
+          const avg = vals.reduce((a,b) => a+b, 0) / vals.length;
+          if (!state.cal.fingers[f.label]) state.cal.fingers[f.label] = {};
+          state.cal.fingers[f.label].bentIsolated = avg;
+          // Use isolated if it gives a bigger range
+          const rest = state.cal.fingers[f.label].rest || 0;
+          const isolatedRange = Math.abs(avg - rest);
+          if (isolatedRange > (state.cal.fingers[f.label].range || 0)) {
+            state.cal.fingers[f.label].bent = avg;
+            state.cal.fingers[f.label].range = isolatedRange;
+          }
+        }
+
+        // Remove highlight
+        $('sensorsGrid').querySelector(`#cell-${f.label}`)?.classList.remove('highlight');
+
+        state.fingerIndex++;
+        setTimeout(() => startFingerCapture(), 300);
+      });
+    }
+
+    // ─── STEP 4: Orientations ───
+    function buildOrientGrid() {
+      const grid = $('orientGrid');
+      grid.innerHTML = '';
+      ORIENTATIONS.forEach((o, i) => {
+        const card = document.createElement('div');
+        card.className = 'orient-card';
+        card.id = `orient-${i}`;
+        card.innerHTML = `<span class="orient-icon">${o.icon}</span>${o.label}`;
+        grid.appendChild(card);
+      });
+    }
+
+    function startOrientCapture() {
+      if (state.orientIndex >= ORIENTATIONS.length) {
+        setTimeout(() => setStep(5), 500);
+        return;
+      }
+
+      ORIENTATIONS.forEach((_, i) => {
+        const card = $(`orient-${i}`);
+        card.classList.toggle('active', i === state.orientIndex);
+        card.classList.toggle('done', i < state.orientIndex);
+      });
+
+      const o = ORIENTATIONS[state.orientIndex];
+      $('activeDesc').textContent = `${o.desc}. Hold both hands in this position for 4 seconds.`;
+
+      startTimedCapture(() => {
+        const samples = state.recordingSamples;
+
+        // Right hand (MPU1) orientation
+        const ax1 = avg(samples.map(s => s.imu.aX1));
+        const ay1 = avg(samples.map(s => s.imu.aY1));
+        const az1 = avg(samples.map(s => s.imu.aZ1));
+        state.cal.imu.mpu1.orientations[o.key] = { aX: ax1, aY: ay1, aZ: az1 };
+
+        // Left hand (MPU2) orientation
+        const ax2 = avg(samples.map(s => s.imu.aX2));
+        const ay2 = avg(samples.map(s => s.imu.aY2));
+        const az2 = avg(samples.map(s => s.imu.aZ2));
+        state.cal.imu.mpu2.orientations[o.key] = { aX: ax2, aY: ay2, aZ: az2 };
+
+        state.orientIndex++;
+        setTimeout(() => startOrientCapture(), 300);
+      });
+    }
+
+    function avg(arr) {
+      const valid = arr.filter(v => v !== undefined && !isNaN(v));
+      return valid.length > 0 ? valid.reduce((a,b) => a+b, 0) / valid.length : 0;
+    }
+
+    // ─── SKIP STEP ───
+    $('skipStepBtn').addEventListener('click', () => {
+      stopCapture();
+      const next = state.currentStep + 1;
+      setStep(next > 4 ? 5 : next);
+    });
+
+    // ─── START CALIBRATION ───
+    startBtn.addEventListener('click', () => {
+      // Reset calibration data
+      state.cal = {
+        fingers: {},
+        imu: {
+          mpu1: { address: '0x69', hand: 'right', gyroOffset: {}, orientations: {} },
+          mpu2: { address: '0x68', hand: 'left',  gyroOffset: {}, orientations: {} },
+        }
+      };
+      setStep(1);
+    });
+
+    // ─── RECALIBRATE ───
+    $('recalibrateBtn').addEventListener('click', () => {
+      $('resultsCard').classList.add('hidden');
+      state.cal = {
+        fingers: {},
+        imu: {
+          mpu1: { address: '0x69', hand: 'right', gyroOffset: {}, orientations: {} },
+          mpu2: { address: '0x68', hand: 'left',  gyroOffset: {}, orientations: {} },
+        }
+      };
+      setStep(1);
+    });
+
+    // ─── SHOW RESULTS ───
+    function showResults() {
+      $('resultsCard').classList.remove('hidden');
+      const tbody = $('resultsBody');
+      tbody.innerHTML = '';
+
+      FINGERS.forEach(f => {
+        const data = state.cal.fingers[f.label] || {};
+        const rest = data.rest !== undefined ? Math.round(data.rest) : '—';
+        const bent = data.bent !== undefined ? Math.round(data.bent) : '—';
+        const range = data.range !== undefined ? Math.round(data.range) : '—';
+        const ok = data.range > 50; // minimum viable range
+        const status = data.range ? (ok ? '✅ Good' : '⚠️ Low range') : '—';
+
+        // Normalized % (open hand should be ~0%, bent should be ~100%)
+        const openPct = '0%';   // rest is the zero-point by definition
+        const bentPct = data.range > 0 ? '100%' : '—';
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${f.name}</td>
+          <td>D${f.gpio}</td>
+          <td>${rest}</td>
+          <td>${bent}</td>
+          <td>${range}</td>
+          <td style="color:var(--success);font-weight:600">${openPct}</td>
+          <td style="color:var(--warning);font-weight:600">${bentPct}</td>
+          <td style="color: ${ok ? 'var(--success)' : 'var(--warning)'}">${status}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      // IMU results
+      const imuDiv = $('imuResults');
+      imuDiv.innerHTML = '';
+      ['mpu1', 'mpu2'].forEach(key => {
+        const mpu = state.cal.imu[key];
+        const label = key === 'mpu1' ? 'Right Hand (0x69)' : 'Left Hand (0x68)';
+        let html = `<h4 style="color:var(--text-secondary);font-size:0.82rem;margin:10px 0 6px;">${label}</h4>`;
+        html += `<div style="font-size:0.82rem;color:var(--text-muted);margin-bottom:4px;">Gyro Offset: ${Object.entries(mpu.gyroOffset).map(([k,v]) => `${k}=${v.toFixed(2)}`).join(', ') || '—'}</div>`;
+        Object.entries(mpu.orientations).forEach(([orient, vals]) => {
+          html += `<div style="font-size:0.82rem;color:var(--text-muted);">${orient}: aX=${vals.aX.toFixed(3)}, aY=${vals.aY.toFixed(3)}, aZ=${vals.aZ.toFixed(3)}</div>`;
+        });
+        imuDiv.innerHTML += html;
+      });
+    }
+
+    // ─── EXPORT JSON ───
+    $('exportBtn').addEventListener('click', () => {
+      const output = {
+        exportDate: new Date().toISOString(),
+        userId: 'user_1',
+        fingers: {},
+        imu: state.cal.imu,
+      };
+
+      FINGERS.forEach(f => {
+        const data = state.cal.fingers[f.label] || {};
+        output.fingers[f.label] = {
+          name: f.name,
+          gpio: f.gpio,
+          restResistance: data.rest || 0,
+          bentResistance: data.bent || 0,
+          range: data.range || 0,
+        };
+      });
+
+      const blob = new Blob([JSON.stringify(output, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `smartglove_calibration_${new Date().toISOString().slice(0,10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    // ─── INIT ───
+    setStep(0);
+  </script>
+</body>
+</html>
+
+

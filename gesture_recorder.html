@@ -1,0 +1,723 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gesture Data Recorder — Sign Language Dataset</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bgA: #0a0e1a; --bgB: #101829;
+      --card: rgba(16, 24, 48, 0.92); --card-border: rgba(70, 110, 200, 0.18);
+      --ink: #e2e8f4; --muted: #6b7fa0; --accent: #4a7cff;
+      --bend-color: #ff8c42; --open-color: #22c997; --danger: #ff4d6a;
+      --surface: rgba(30, 46, 80, 0.5); --glass: rgba(255,255,255,0.03);
+      --radius: 16px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Outfit', 'Segoe UI', system-ui, sans-serif;
+      color: var(--ink); min-height: 100vh;
+      background:
+        radial-gradient(ellipse at 15% 10%, rgba(74,124,255,0.1) 0%, transparent 50%),
+        radial-gradient(ellipse at 85% 90%, rgba(34,201,151,0.08) 0%, transparent 50%),
+        linear-gradient(160deg, var(--bgA), var(--bgB));
+      padding: 20px;
+    }
+    .app { max-width: 1200px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+    .panel {
+      background: var(--card); border: 1px solid var(--card-border);
+      border-radius: var(--radius); padding: 18px 22px;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.35); backdrop-filter: blur(14px);
+    }
+    h1 {
+      font-size: 1.4rem; font-weight: 800;
+      background: linear-gradient(135deg, #fff, #a8c4ff, #c4b5fd);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    h2 { font-size: 1rem; font-weight: 700; color: #cdd8ee; margin-bottom: 10px; }
+    .sub { margin: 4px 0 0; color: var(--muted); font-size: 0.88rem; line-height: 1.4; }
+    button, select, input[type="text"], input[type="number"] {
+      border: 1px solid var(--card-border); background: var(--surface);
+      color: var(--ink); border-radius: 10px; padding: 9px 16px;
+      font-size: 0.88rem; font-family: inherit; transition: all 0.2s;
+    }
+    button { cursor: pointer; font-weight: 600; letter-spacing: 0.3px; }
+    button:hover { background: rgba(74,124,255,0.2); border-color: var(--accent); }
+    button:active { transform: scale(0.97); }
+    .btn-connect { background: linear-gradient(135deg, #4a7cff, #3362df); border: none; color: #fff; }
+    .btn-load { background: linear-gradient(135deg, #8b5cf6, #7c3aed); border: none; color: #fff; cursor: pointer; }
+    .btn-record { background: linear-gradient(135deg, #ef4444, #dc2626); border: none; color: #fff; font-size: 1rem; padding: 12px 28px; }
+    .btn-record:hover { filter: brightness(1.1); }
+    .btn-record.recording { animation: recPulse 1s ease-in-out infinite; }
+    .btn-export { background: linear-gradient(135deg, #22c997, #18a87c); border: none; color: #fff; }
+    .btn-export:hover { filter: brightness(1.1); }
+    @keyframes recPulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.4); }
+      50% { box-shadow: 0 0 0 12px rgba(239,68,68,0); }
+    }
+    .controls { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+    .status-bar {
+      display: flex; flex-wrap: wrap; gap: 16px; align-items: center;
+      margin-top: 10px; font-size: 0.85rem; color: var(--muted);
+    }
+    .status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 6px; vertical-align: middle; }
+    .dot-on { background: var(--open-color); box-shadow: 0 0 8px rgba(34,201,151,0.5); }
+    .dot-off { background: var(--danger); }
+
+    /* Recording Section */
+    .record-section {
+      display: flex; flex-wrap: wrap; gap: 16px; align-items: center;
+      padding: 16px; background: rgba(0,0,0,0.2); border-radius: 12px;
+      margin-top: 12px;
+    }
+    .record-section label { color: var(--muted); font-size: 0.88rem; font-weight: 600; }
+    .label-input {
+      width: 160px; text-align: center; font-size: 1.1rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 2px;
+    }
+    .sample-duration { width: 70px; text-align: center; }
+    .rec-status {
+      font-size: 0.9rem; font-weight: 700; color: var(--danger);
+      min-width: 120px;
+    }
+
+    /* Live finger display */
+    .finger-row {
+      display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px;
+    }
+    .finger-chip {
+      padding: 6px 14px; border-radius: 10px; font-size: 0.82rem; font-weight: 700;
+      border: 1px solid var(--card-border); background: var(--glass);
+      transition: all 0.2s; text-align: center; min-width: 80px;
+    }
+    .finger-chip.bent { border-color: rgba(255,140,66,0.4); background: rgba(255,140,66,0.1); color: var(--bend-color); }
+    .finger-chip.open { border-color: rgba(34,201,151,0.3); background: rgba(34,201,151,0.06); color: var(--open-color); }
+
+    /* Dataset Table */
+    .dataset-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; margin-top: 10px; }
+    .dataset-table th {
+      padding: 8px 10px; text-align: left; font-weight: 600; color: var(--muted);
+      border-bottom: 2px solid var(--card-border); text-transform: uppercase;
+      font-size: 0.75rem; letter-spacing: 0.5px;
+    }
+    .dataset-table td { padding: 6px 10px; border-bottom: 1px solid rgba(70,110,200,0.08); }
+    .dataset-table tr:hover td { background: rgba(74,124,255,0.04); }
+    .label-cell { font-weight: 800; font-size: 1rem; letter-spacing: 1px; }
+    .count-cell { font-weight: 700; color: var(--accent); }
+    .btn-del-row {
+      padding: 3px 10px; font-size: 0.72rem; border-radius: 6px;
+      background: rgba(255,77,106,0.1); border: 1px solid rgba(255,77,106,0.2);
+      color: var(--danger); cursor: pointer;
+    }
+    .btn-del-row:hover { background: rgba(255,77,106,0.2); }
+
+    .total-bar {
+      margin-top: 12px; padding: 10px 16px; background: rgba(0,0,0,0.2);
+      border-radius: 10px; font-size: 0.9rem; display: flex; gap: 20px;
+      flex-wrap: wrap; align-items: center;
+    }
+    .total-bar strong { color: var(--accent); }
+
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(74,124,255,0.3); border-radius: 3px; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- Header -->
+    <div class="panel">
+      <h1>📝 Gesture Data Recorder</h1>
+      <p class="sub">Record labeled gesture samples from flex sensors + accelerometers for ML model training. Each sample captures all sensor readings.</p>
+
+      <div class="controls">
+        <label class="btn-load" style="display:inline-flex;align-items:center;gap:6px;">
+          📂 Load pct_cal Config
+          <input type="file" id="loadCfg" accept=".json" style="display:none" />
+        </label>
+        <button id="connectBtn" class="btn-connect" type="button">🔌 Connect Serial</button>
+        <button id="disconnectBtn" type="button">Disconnect</button>
+        <span style="flex:1"></span>
+        <label class="btn-load" style="display:inline-flex;align-items:center;gap:6px;">
+          📥 Import Dataset
+          <input type="file" id="importDataset" accept=".csv,.json" style="display:none" />
+        </label>
+      </div>
+
+      <div class="status-bar">
+        <span id="connStatus"><span class="status-dot dot-off"></span> Disconnected</span>
+        <span id="sampleRate">—</span>
+        <span id="calInfo" style="color:var(--muted);">No calibration loaded</span>
+      </div>
+    </div>
+
+    <!-- Recording Controls -->
+    <div class="panel">
+      <h2>🎙️ Record Samples</h2>
+      <p class="sub">Type a sign label → hold the gesture → click Record. It captures multiple snapshots during the hold duration.</p>
+
+      <div class="record-section">
+        <label>Sign Label:</label>
+        <input type="text" class="label-input" id="signLabel" placeholder="A" maxlength="20" />
+
+        <label>Hold (sec):</label>
+        <input type="number" class="sample-duration" id="holdDuration" value="2" min="1" max="10" step="0.5" />
+
+        <button class="btn-record" id="recordBtn" type="button">⏺ Record</button>
+        <span class="rec-status" id="recStatus"></span>
+      </div>
+
+      <!-- Live finger states -->
+      <div class="finger-row" id="fingerRow"></div>
+    </div>
+
+    <!-- Dataset Overview -->
+    <div class="panel">
+      <h2>📊 Dataset Overview</h2>
+      <div class="total-bar" id="totalBar">
+        <span>Total samples: <strong id="totalCount">0</strong></span>
+        <span>Labels: <strong id="labelCount">0</strong></span>
+        <span>Channels: <strong id="channelCount">0</strong></span>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="dataset-table">
+          <thead>
+            <tr>
+              <th>Label</th>
+              <th>Samples</th>
+              <th>Last Recorded</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="datasetBody"></tbody>
+        </table>
+      </div>
+      <div class="controls" style="margin-top:14px;">
+        <button class="btn-export" id="exportCsvBtn" type="button">📤 Export CSV (for Colab)</button>
+        <button class="btn-export" id="exportJsonBtn" type="button" style="background:linear-gradient(135deg,#8b5cf6,#7c3aed);">📤 Export JSON</button>
+        <span style="flex:1"></span>
+        <button id="clearDataBtn" type="button" style="color:var(--danger);">🗑️ Clear All Data</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /* ============================================================
+       CONSTANTS & STATE
+    ============================================================ */
+    const GPIO_PIN_NAMES = {
+      36: 'R.Thumb', 39: 'R.Index', 34: 'R.Middle', 35: 'R.Ring', 32: 'R.Pinky',
+      33: 'L.Thumb', 25: 'L.Index', 26: 'L.Middle', 27: 'L.Ring', 14: 'L.Pinky'
+    };
+
+    const state = {
+      port: null, reader: null, lineBuffer: '', connected: false,
+      pins: [],           // flex sensor pin numbers
+      accelLabels: [],    // accelerometer column labels e.g. ['aX1','aY1','aZ1','aX2','aY2','aZ2']
+      accelValues: {},    // live accel values: { 'aX1': 0.12, ... }
+      perFingerThresholds: {},
+      bendThreshold: 3.5, releaseThreshold: 2.6, smoothWindow: 10,
+      buffers: {}, rollingAvg: {}, baseline: {}, baselineCount: {},
+      bendPeak: {}, currentPct: {}, currentState: {},
+      sampleCount: 0, lastRateTime: Date.now(), currentRate: 0,
+      liveValues: {},
+      isRecording: false,
+      recordingFrames: [],
+      dataset: []
+    };
+
+    const $ = id => document.getElementById(id);
+
+    /* ============================================================
+       SENSOR PROCESSING (same as gesture_test.html)
+    ============================================================ */
+    function updateRollingAvg(pin, value) {
+      const buf = state.buffers[pin] || (state.buffers[pin] = []);
+      buf.push(value);
+      while (buf.length > state.smoothWindow) buf.shift();
+      state.rollingAvg[pin] = buf.reduce((a, b) => a + b, 0) / buf.length;
+      return state.rollingAvg[pin];
+    }
+
+    function updateBaseline(pin, value) {
+      if (state.baseline[pin] == null) {
+        state.baseline[pin] = value;
+        state.baselineCount[pin] = 1;
+        return;
+      }
+      state.baselineCount[pin] = (state.baselineCount[pin] || 0) + 1;
+      const s = state.currentState[pin];
+      if (!s || s === 'stable' || s === 'waiting') {
+        const alpha = 0.03;
+        state.baseline[pin] = state.baseline[pin] * (1 - alpha) + value * alpha;
+      }
+    }
+
+    function classify(pin, value) {
+      const base = state.baseline[pin];
+      if (base == null || base === 0 || (state.baselineCount[pin] || 0) < 15) return 'waiting';
+      const pctFromBase = ((value - base) / base) * 100;
+      state.currentPct[pin] = pctFromBase;
+
+      const pft = state.perFingerThresholds[pin];
+      const bendTh = pft ? pft.bendPct : state.bendThreshold;
+      const relTh = pft ? pft.releasePct : state.releaseThreshold;
+      const prev = state.currentState[pin] || 'waiting';
+
+      if (prev === 'bending') {
+        if (!state.bendPeak[pin] || value > state.bendPeak[pin]) state.bendPeak[pin] = value;
+        const dropPct = ((state.bendPeak[pin] - value) / state.bendPeak[pin]) * 100;
+        if (dropPct >= relTh) return 'releasing';
+        if (pctFromBase >= bendTh * 0.4) return 'bending';
+        state.bendPeak[pin] = null;
+        return 'stable';
+      }
+      if (prev === 'releasing') {
+        if (Math.abs(pctFromBase) < bendTh * 0.5) { state.bendPeak[pin] = null; return 'stable'; }
+        if (pctFromBase >= bendTh) { state.bendPeak[pin] = value; return 'bending'; }
+        return 'releasing';
+      }
+      if (pctFromBase >= bendTh) { state.bendPeak[pin] = value; return 'bending'; }
+      return 'stable';
+    }
+
+    /* ============================================================
+       PROCESS SENSOR DATA
+    ============================================================ */
+    function updateFinger(pin, value) {
+      state.liveValues[pin] = value;
+      updateRollingAvg(pin, value);
+      updateBaseline(pin, value);
+      const newState = classify(pin, value);
+      state.currentState[pin] = newState;
+      updateFingerChip(pin);
+    }
+
+    function updateFingerChip(pin) {
+      const el = $(`fchip-${pin}`);
+      if (!el) return;
+      const s = state.currentState[pin] || 'waiting';
+      const pct = state.currentPct[pin] || 0;
+      const isBent = s === 'bending';
+      const name = GPIO_PIN_NAMES[pin] || `P${pin}`;
+      el.className = `finger-chip ${isBent ? 'bent' : s === 'waiting' ? '' : 'open'}`;
+      el.textContent = `${name} ${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%`;
+    }
+
+    function buildFingerChips() {
+      const row = $('fingerRow');
+      row.innerHTML = '';
+      // Flex sensor chips
+      state.pins.forEach(pin => {
+        const chip = document.createElement('span');
+        chip.className = 'finger-chip';
+        chip.id = `fchip-${pin}`;
+        chip.textContent = GPIO_PIN_NAMES[pin] || `P${pin}`;
+        row.appendChild(chip);
+      });
+      // Accelerometer chips
+      state.accelLabels.forEach(label => {
+        const chip = document.createElement('span');
+        chip.className = 'finger-chip';
+        chip.id = `achip-${label}`;
+        chip.style.borderColor = 'rgba(167,139,250,0.3)';
+        chip.textContent = `${label}: —`;
+        row.appendChild(chip);
+      });
+    }
+
+    function updateAccelChip(label, value) {
+      const el = $(`achip-${label}`);
+      if (!el) return;
+      el.textContent = `${label}: ${value.toFixed(2)}g`;
+      const abs = Math.abs(value);
+      if (abs > 0.5) {
+        el.style.borderColor = 'rgba(255,140,66,0.4)';
+        el.style.color = 'var(--bend-color)';
+      } else {
+        el.style.borderColor = 'rgba(167,139,250,0.3)';
+        el.style.color = 'var(--neutral-color, #a78bfa)';
+      }
+    }
+
+    /* ============================================================
+       RECORDING
+    ============================================================ */
+    let recordTimer = null;
+    let frameThrottle = 0;
+
+    function captureFrame() {
+      const now = Date.now();
+      if (now - frameThrottle < 50) return; // ~20 fps max
+      frameThrottle = now;
+
+      // Only capture if all flex pins have valid state (not waiting)
+      const allReady = state.pins.every(p => {
+        const s = state.currentState[p];
+        return s && s !== 'waiting';
+      });
+      if (!allReady) return;
+
+      const features = {};
+      // Flex sensor features (percentage change)
+      state.pins.forEach(pin => {
+        const name = GPIO_PIN_NAMES[pin] || `P${pin}`;
+        features[name + '_pct'] = +(state.currentPct[pin] || 0).toFixed(3);
+        features[name + '_raw'] = +(state.liveValues[pin] || 0).toFixed(1);
+      });
+      // Accelerometer features (raw g values)
+      state.accelLabels.forEach(label => {
+        features[label] = +(state.accelValues[label] || 0).toFixed(3);
+      });
+      state.recordingFrames.push(features);
+    }
+
+    async function startRecording() {
+      const label = $('signLabel').value.trim().toUpperCase();
+      if (!label) { alert('Enter a sign label first!'); return; }
+      if (!state.connected) { alert('Connect serial first!'); return; }
+
+      const duration = parseFloat($('holdDuration').value) || 2;
+
+      state.isRecording = true;
+      state.recordingFrames = [];
+      $('recordBtn').textContent = '⏺ RECORDING...';
+      $('recordBtn').classList.add('recording');
+      $('recStatus').textContent = `Recording "${label}"...`;
+
+      // Countdown
+      const startTime = Date.now();
+      const endTime = startTime + duration * 1000;
+
+      recordTimer = setInterval(() => {
+        const remaining = Math.max(0, (endTime - Date.now()) / 1000);
+        $('recStatus').textContent = `⏺ ${remaining.toFixed(1)}s remaining...`;
+      }, 100);
+
+      await new Promise(resolve => setTimeout(resolve, duration * 1000));
+
+      clearInterval(recordTimer);
+      state.isRecording = false;
+      $('recordBtn').textContent = '⏺ Record';
+      $('recordBtn').classList.remove('recording');
+
+      const frames = state.recordingFrames;
+      if (frames.length === 0) {
+        $('recStatus').textContent = '⚠️ No frames captured (sensors still warming up?)';
+        return;
+      }
+
+      // Average all captured frames into one sample
+      const avgFeatures = {};
+      const keys = Object.keys(frames[0]);
+      keys.forEach(k => {
+        const sum = frames.reduce((a, f) => a + (f[k] || 0), 0);
+        avgFeatures[k] = +(sum / frames.length).toFixed(3);
+      });
+
+      // Also store individual frames as separate samples for better training
+      frames.forEach(f => {
+        state.dataset.push({
+          label,
+          timestamp: new Date().toISOString(),
+          features: { ...f }
+        });
+      });
+
+      $('recStatus').textContent = `✅ Saved ${frames.length} samples for "${label}"`;
+      updateDatasetTable();
+    }
+
+    /* ============================================================
+       DATASET TABLE
+    ============================================================ */
+    function updateDatasetTable() {
+      const tbody = $('datasetBody');
+      tbody.innerHTML = '';
+
+      // Group by label
+      const groups = {};
+      state.dataset.forEach(s => {
+        if (!groups[s.label]) groups[s.label] = { count: 0, lastTime: '' };
+        groups[s.label].count++;
+        groups[s.label].lastTime = s.timestamp;
+      });
+
+      const sorted = Object.entries(groups).sort((a, b) => a[0].localeCompare(b[0]));
+
+      sorted.forEach(([label, info]) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="label-cell">${label}</td>
+          <td class="count-cell">${info.count}</td>
+          <td style="color:var(--muted);font-size:0.78rem;">${new Date(info.lastTime).toLocaleTimeString()}</td>
+          <td><button class="btn-del-row" data-label="${label}">Delete</button></td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      // Totals
+      $('totalCount').textContent = state.dataset.length;
+      $('labelCount').textContent = sorted.length;
+      $('channelCount').textContent = state.dataset.length > 0 ? Object.keys(state.dataset[0].features).length : 0;
+
+      // Delete handlers
+      tbody.querySelectorAll('.btn-del-row').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const lbl = btn.dataset.label;
+          if (confirm(`Delete all samples for "${lbl}"?`)) {
+            state.dataset = state.dataset.filter(s => s.label !== lbl);
+            updateDatasetTable();
+          }
+        });
+      });
+    }
+
+    /* ============================================================
+       EXPORT
+    ============================================================ */
+    function exportCSV() {
+      if (state.dataset.length === 0) { alert('No data to export!'); return; }
+
+      // Get all feature keys from first sample
+      const featureKeys = Object.keys(state.dataset[0].features);
+      // Export percentage columns (flex) + accelerometer columns (aX1, aY1, etc.)
+      const mlKeys = featureKeys.filter(k => k.endsWith('_pct') || /^a[XYZ]\d/.test(k));
+
+      const header = ['label', ...mlKeys].join(',');
+      const rows = state.dataset.map(s => {
+        return [s.label, ...mlKeys.map(k => s.features[k] ?? 0)].join(',');
+      });
+
+      const csv = [header, ...rows].join('\n');
+      downloadFile(csv, `gesture_dataset_${Date.now()}.csv`, 'text/csv');
+    }
+
+    function exportJSON() {
+      if (state.dataset.length === 0) { alert('No data to export!'); return; }
+      const json = JSON.stringify({
+        exportDate: new Date().toISOString(),
+        totalSamples: state.dataset.length,
+        pins: state.pins,
+        pinNames: GPIO_PIN_NAMES,
+        samples: state.dataset
+      }, null, 2);
+      downloadFile(json, `gesture_dataset_${Date.now()}.json`, 'application/json');
+    }
+
+    function downloadFile(content, filename, type) {
+      const blob = new Blob([content], { type });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename; a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function importDataset(file) {
+      const r = new FileReader();
+      r.onload = ev => {
+        try {
+          const text = ev.target.result;
+          if (file.name.endsWith('.json')) {
+            const data = JSON.parse(text);
+            if (data.samples) {
+              state.dataset.push(...data.samples);
+            }
+          } else {
+            // CSV import
+            const lines = text.trim().split('\n');
+            const header = lines[0].split(',');
+            const labelIdx = header.indexOf('label');
+            const featureKeys = header.filter(h => h !== 'label');
+            for (let i = 1; i < lines.length; i++) {
+              const vals = lines[i].split(',');
+              const features = {};
+              featureKeys.forEach((k, j) => {
+                features[k] = parseFloat(vals[labelIdx === 0 ? j + 1 : j]) || 0;
+              });
+              state.dataset.push({
+                label: vals[labelIdx],
+                timestamp: new Date().toISOString(),
+                features
+              });
+            }
+          }
+          updateDatasetTable();
+          alert(`Imported! Total samples: ${state.dataset.length}`);
+        } catch (err) { alert(`Import error: ${err.message}`); }
+      };
+      r.readAsText(file);
+    }
+
+    /* ============================================================
+       SERIAL & CSV PARSING
+    ============================================================ */
+    function parseCsvLine(line) {
+      const clean = line.trim();
+      if (!clean || !clean.startsWith('DATA')) return;
+      const parts = clean.split(',');
+      if (parts.length < 2) return;
+
+      // Header line: DATA,P36,P39,...,P14,aX1,aY1,aZ1,aX2,aY2,aZ2
+      if (parts[1] && /^[Pp]/.test(parts[1])) {
+        const headerCols = parts.slice(1);
+        const flexPins = [];
+        const accelLabels = [];
+
+        headerCols.forEach(col => {
+          const t = col.trim();
+          if (/^[Pp]\d+$/.test(t)) {
+            flexPins.push(Number(t.replace(/[^0-9]/g, '')));
+          } else if (/^a[XYZ]\d/.test(t)) {
+            accelLabels.push(t);
+          }
+        });
+
+        const pinsChanged = JSON.stringify(flexPins) !== JSON.stringify(state.pins);
+        const accelChanged = JSON.stringify(accelLabels) !== JSON.stringify(state.accelLabels);
+
+        if (pinsChanged || accelChanged) {
+          state.pins = flexPins;
+          state.accelLabels = accelLabels;
+          buildFingerChips();
+          const info = [`${flexPins.length} flex`];
+          if (accelLabels.length) info.push(`${accelLabels.length} accel (${accelLabels.join(',')})`);
+          $('calInfo').textContent = `Detected: ${info.join(' + ')}`;
+        }
+        return;
+      }
+
+      // Data line: DATA,val1,...,val10,ax1,ay1,az1,ax2,ay2,az2
+      const values = parts.slice(1).map(s => {
+        const t = s.trim().toLowerCase();
+        if (t === 'nan' || t === '') return null;
+        const n = Number(t);
+        return Number.isFinite(n) ? n : null;
+      });
+
+      if (state.pins.length === 0 && state.accelLabels.length === 0) {
+        state.pins = Array.from({ length: values.length }, (_, i) => i + 1);
+        buildFingerChips();
+      }
+
+      // Sample rate
+      state.sampleCount++;
+      const now = Date.now();
+      if (now - state.lastRateTime >= 1000) {
+        state.currentRate = Math.round(state.sampleCount * 1000 / (now - state.lastRateTime));
+        state.sampleCount = 0; state.lastRateTime = now;
+        $('sampleRate').textContent = `${state.currentRate} sps`;
+      }
+
+      // Process flex sensors
+      const flexCount = Math.min(state.pins.length, values.length);
+      for (let i = 0; i < flexCount; i++) {
+        if (values[i] !== null) updateFinger(state.pins[i], values[i]);
+      }
+
+      // Process accelerometer values (come after flex values)
+      const accelStart = state.pins.length;
+      state.accelLabels.forEach((label, j) => {
+        const idx = accelStart + j;
+        if (idx < values.length && values[idx] !== null) {
+          state.accelValues[label] = values[idx];
+          updateAccelChip(label, values[idx]);
+        }
+      });
+
+      // Trigger frame capture if recording
+      if (state.isRecording) captureFrame();
+    }
+
+    function setConnStatus(t, ok) {
+      state.connected = ok;
+      $('connStatus').innerHTML = `<span class="status-dot ${ok?'dot-on':'dot-off'}"></span> ${t}`;
+    }
+
+    async function disconnectSerial() {
+      try { if (state.reader) { await state.reader.cancel(); state.reader.releaseLock(); state.reader = null; } } catch(e) {}
+      try { if (state.port) { await state.port.close(); state.port = null; } } catch(e) {}
+      setConnStatus('Disconnected', false);
+    }
+
+    async function connectSerial() {
+      if (!('serial' in navigator)) { alert('Web Serial not supported. Use Chrome or Edge.'); return; }
+      try {
+        state.port = await navigator.serial.requestPort();
+        await state.port.open({ baudRate: 115200 });
+        setConnStatus('Connected', true);
+        const dec = new TextDecoderStream();
+        const closed = state.port.readable.pipeTo(dec.writable);
+        state.reader = dec.readable.getReader();
+        while (true) {
+          const { value, done } = await state.reader.read();
+          if (done) break;
+          if (!value) continue;
+          state.lineBuffer += value;
+          const lines = state.lineBuffer.split(/\r?\n/);
+          state.lineBuffer = lines.pop() || '';
+          for (const l of lines) parseCsvLine(l);
+        }
+        await closed;
+      } catch (err) { setConnStatus(`Error: ${err.message}`, false); }
+      finally { await disconnectSerial(); }
+    }
+
+    /* ============================================================
+       LOAD CALIBRATION
+    ============================================================ */
+    function loadConfig(data) {
+      if (data.bendThreshold != null) state.bendThreshold = data.bendThreshold;
+      if (data.releaseThreshold != null) state.releaseThreshold = data.releaseThreshold;
+      if (data.smoothWindow != null) state.smoothWindow = data.smoothWindow;
+
+      if (data.perFingerThresholds) {
+        state.perFingerThresholds = {};
+        Object.entries(data.perFingerThresholds).forEach(([pin, cfg]) => {
+          state.perFingerThresholds[pin] = { bendPct: cfg.bendPct, releasePct: cfg.releasePct };
+        });
+      }
+      $('calInfo').textContent = `✅ Calibration loaded`;
+      $('calInfo').style.color = '#22c997';
+    }
+
+    /* ============================================================
+       EVENT LISTENERS
+    ============================================================ */
+    $('connectBtn').addEventListener('click', connectSerial);
+    $('disconnectBtn').addEventListener('click', disconnectSerial);
+    $('recordBtn').addEventListener('click', startRecording);
+    $('exportCsvBtn').addEventListener('click', exportCSV);
+    $('exportJsonBtn').addEventListener('click', exportJSON);
+    $('clearDataBtn').addEventListener('click', () => {
+      if (confirm('Delete ALL recorded data?')) {
+        state.dataset = [];
+        updateDatasetTable();
+      }
+    });
+    $('loadCfg').addEventListener('change', e => {
+      if (!e.target.files.length) return;
+      const r = new FileReader();
+      r.onload = ev => {
+        try { loadConfig(JSON.parse(ev.target.result)); }
+        catch (err) { alert(`Parse error: ${err.message}`); }
+      };
+      r.readAsText(e.target.files[0]);
+    });
+    $('importDataset').addEventListener('change', e => {
+      if (!e.target.files.length) return;
+      importDataset(e.target.files[0]);
+    });
+
+    // Keyboard shortcut: Space to record
+    document.addEventListener('keydown', e => {
+      if (e.code === 'Space' && !state.isRecording && document.activeElement.tagName !== 'INPUT') {
+        e.preventDefault();
+        startRecording();
+      }
+    });
+  </script>
+</body>
+</html>
+

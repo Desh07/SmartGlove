@@ -1,0 +1,16 @@
+# Ignore Markdown files explicitly as requested
+*.md
+
+# Python
+__pycache__/
+*.pyc
+
+# Virtual Environment
+venv/
+env/
+.env
+
+# TFJS Models (If we don't want to push weights, but we DO want to push them because they are required. I'll leave them)
+
+# Datasets
+# If CSVs are huge, maybe we ignore them, but since we just want to ignore md files as requested, I won't ignore csv so they don't break.

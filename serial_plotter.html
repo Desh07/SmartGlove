@@ -1,0 +1,783 @@
+﻿<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SmartGlove Serial Plotter — Flex + IMU</title>
+    <style>
+      :root {
+        --bgA: #f7fbff;
+        --bgB: #e8f2ff;
+        --card: #ffffffdc;
+        --ink: #13223e;
+        --muted: #607196;
+        --line: #d6e3ff;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Segoe UI", "Trebuchet MS", sans-serif;
+        color: var(--ink);
+        min-height: 100vh;
+        background:
+          radial-gradient(circle at 15% 8%, #ffffff 0%, transparent 35%),
+          radial-gradient(circle at 88% 92%, #d2e7ff 0%, transparent 45%),
+          linear-gradient(135deg, var(--bgA), var(--bgB));
+        padding: 18px;
+      }
+
+      .app {
+        max-width: 1180px;
+        margin: 0 auto;
+        display: grid;
+        gap: 14px;
+      }
+
+      .panel {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        box-shadow: 0 12px 30px rgba(17, 42, 84, 0.09);
+        padding: 12px;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 1.2rem;
+        letter-spacing: 0.3px;
+      }
+
+      .sub {
+        margin: 6px 0 0;
+        color: var(--muted);
+        font-size: 0.92rem;
+      }
+
+      .controls {
+        margin-top: 10px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+      }
+
+      button,
+      select {
+        border: 1px solid #c8dafd;
+        background: #fff;
+        color: var(--ink);
+        border-radius: 9px;
+        padding: 7px 10px;
+        font-size: 0.9rem;
+      }
+
+      button {
+        cursor: pointer;
+      }
+
+      .pin-list {
+        margin-top: 10px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .pin-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 9px;
+        border-radius: 999px;
+        border: 1px solid #d1e1ff;
+        background: #fff;
+        font-size: 0.86rem;
+        user-select: none;
+      }
+
+      .swatch {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        border: 1px solid #fff;
+        box-shadow: 0 0 0 1px #c3d6ff;
+        display: inline-block;
+      }
+
+      .val-badge {
+        font-size: 0.82rem;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+        color: #1d3d74;
+        background: #e8f0ff;
+        border: 1px solid #c5d8ff;
+        border-radius: 6px;
+        padding: 1px 6px;
+        min-width: 42px;
+        text-align: right;
+        letter-spacing: 0.3px;
+        transition: background 0.15s;
+      }
+
+      .val-badge.updated {
+        background: #d0e9ff;
+      }
+
+      .canvas-wrap {
+        position: relative;
+        width: 100%;
+        height: min(65vh, 560px);
+        min-height: 300px;
+      }
+
+      #plot {
+        width: 100%;
+        height: 100%;
+        display: block;
+        border-radius: 10px;
+        border: 1px solid #d6e3ff;
+        background: #fff;
+      }
+
+      .status {
+        margin-top: 8px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        color: var(--muted);
+        font-size: 0.87rem;
+      }
+
+      code {
+        background: #eff5ff;
+        border: 1px solid #d4e3ff;
+        border-radius: 6px;
+        padding: 1px 5px;
+        color: #1d3d74;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <div class="panel">
+        <h1>🤟 SmartGlove Serial Plotter</h1>
+        <p class="sub">
+          Reads the ESP32 Serial stream (10 flex + 6 accel + 6 gyro = 22 channels).
+          Hide/show channels by sensor.
+        </p>
+
+        <div class="controls">
+          <button id="connectBtn" type="button">Connect Serial</button>
+          <button id="disconnectBtn" type="button">Disconnect</button>
+          <label>
+            Window:
+            <select id="windowPoints">
+              <option value="120">120 samples</option>
+              <option value="200" selected>200 samples</option>
+              <option value="300">300 samples</option>
+              <option value="500">500 samples</option>
+            </select>
+          </label>
+          <button id="showAllBtn" type="button">Show All</button>
+          <button id="hideAllBtn" type="button">Hide All</button>
+          <button id="invertBtn" type="button">Invert</button>
+        </div>
+
+        <div id="pinList" class="pin-list"></div>
+        <div class="status">
+          <span id="conn">Disconnected</span>
+          <span id="info">Waiting for serial header...</span>
+        </div>
+        <div id="nanWarning" class="status" style="color: #d90429; display: none; font-weight: bold; background: #ffe3e3; padding: 6px 12px; border-radius: 6px; border: 1px solid #ffb3b3;">
+          ⚠️ NaN Detected on: <span id="nanList">None</span>
+        </div>
+        <p class="sub">
+          Expected line format: <code>DATA,RT:117,...,LP:64,0.12,-0.95,0.08,1.20,-0.50,0.30,...</code><br>
+          10 flex (NAME:VALUE) + 12 IMU (plain numbers: accel×6 + gyro×6)
+        </p>
+      </div>
+
+      <div class="panel">
+        <div class="canvas-wrap">
+          <canvas id="plot"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const colors = [
+        // Flex sensors (10)
+        "#e63946",  // RT
+        "#f77f00",  // RI
+        "#ffbe0b",  // RM
+        "#2a9d8f",  // RR
+        "#1d3557",  // RP
+        "#457b9d",  // LT
+        "#4361ee",  // LI
+        "#7209b7",  // LM
+        "#f72585",  // LR
+        "#3a86ff",  // LP
+        // Right IMU - Accel (3)
+        "#06d6a0",  // aX1
+        "#118ab2",  // aY1
+        "#073b4c",  // aZ1
+        // Right IMU - Gyro (3)
+        "#ef476f",  // gX1
+        "#ffd166",  // gY1
+        "#06d6a0",  // gZ1
+        // Left IMU - Accel (3)
+        "#8338ec",  // aX2
+        "#3a86ff",  // aY2
+        "#ff006e",  // aZ2
+        // Left IMU - Gyro (3)
+        "#fb5607",  // gX2
+        "#80b918",  // gY2
+        "#9d4edd",  // gZ2
+      ];
+
+      // Order matches firmware: Right hand first, then Left hand
+      const DEFAULT_NAMES = [
+        "Right Thumb",
+        "Right Index",
+        "Right Middle",
+        "Right Ring",
+        "Right Pinky",
+        "Left Thumb",
+        "Left Index",
+        "Left Middle",
+        "Left Ring",
+        "Left Pinky",
+      ];
+
+      // Label map for the new NAME:VALUE format (RT, RI, etc -> full name)
+      const LABEL_MAP = {
+        RT: "Right Thumb",
+        RI: "Right Index",
+        RM: "Right Middle",
+        RR: "Right Ring",
+        RP: "Right Pinky",
+        LT: "Left Thumb",
+        LI: "Left Index",
+        LM: "Left Middle",
+        LR: "Left Ring",
+        LP: "Left Pinky",
+        // IMU channels
+        aX1: "R.Accel X",
+        aY1: "R.Accel Y",
+        aZ1: "R.Accel Z",
+        gX1: "R.Gyro X",
+        gY1: "R.Gyro Y",
+        gZ1: "R.Gyro Z",
+        aX2: "L.Accel X",
+        aY2: "L.Accel Y",
+        aZ2: "L.Accel Z",
+        gX2: "L.Gyro X",
+        gY2: "L.Gyro Y",
+        gZ2: "L.Gyro Z",
+      };
+
+      // IMU channel names in the order they appear after flex data
+      const IMU_CHANNELS = [
+        "aX1","aY1","aZ1","gX1","gY1","gZ1",
+        "aX2","aY2","aZ2","gX2","gY2","gZ2"
+      ];
+
+      const state = {
+        pins: [],
+        buffers: {},
+        visible: {},
+        latestValues: {},   // stores the most recent reading per pin
+        maxPoints: 200,
+        reader: null,
+        port: null,
+        lineBuffer: "",
+      };
+
+      const pinList = document.getElementById("pinList");
+      const connEl = document.getElementById("conn");
+      const infoEl = document.getElementById("info");
+      const canvas = document.getElementById("plot");
+      const ctx = canvas.getContext("2d");
+
+      function setConnection(text, ok) {
+        connEl.textContent = text;
+        connEl.style.color = ok ? "#1e8f46" : "#b02a2a";
+      }
+
+      function resizeCanvas() {
+        const ratio = window.devicePixelRatio || 1;
+        const rect = canvas.getBoundingClientRect();
+        canvas.width = Math.floor(rect.width * ratio);
+        canvas.height = Math.floor(rect.height * ratio);
+        ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+        draw();
+      }
+
+      function clearSeries() {
+        state.buffers = {};
+        state.pins.forEach((pin) => {
+          state.buffers[pin] = [];
+        });
+      }
+
+      function buildPinControls() {
+        pinList.innerHTML = "";
+        state.pins.forEach((pin, i) => {
+          if (!(pin in state.visible)) state.visible[pin] = true;
+
+          const label = document.createElement("label");
+          label.className = "pin-item";
+
+          const cb = document.createElement("input");
+          cb.type = "checkbox";
+          cb.checked = !!state.visible[pin];
+          cb.dataset.pin = pin;
+          cb.addEventListener("change", (e) => {
+            state.visible[e.target.dataset.pin] = e.target.checked;
+            draw();
+          });
+
+          const sw = document.createElement("span");
+          sw.className = "swatch";
+          sw.style.background = colors[i % colors.length];
+
+          const txt = document.createElement("span");
+          const fullName = LABEL_MAP[pin] || DEFAULT_NAMES[i] || `Sensor ${i + 1}`;
+          txt.textContent = `${fullName} (${pin})`;
+
+          // Live value badge
+          const valBadge = document.createElement("span");
+          valBadge.className = "val-badge";
+          valBadge.id = `val-${pin}`;
+          valBadge.textContent = "—";
+
+          label.appendChild(cb);
+          label.appendChild(sw);
+          label.appendChild(txt);
+          label.appendChild(valBadge);
+
+          label.addEventListener("click", (e) => {
+            if (e.target === cb) return;
+            cb.checked = !cb.checked;
+            state.visible[cb.dataset.pin] = cb.checked;
+            draw();
+          });
+
+          pinList.appendChild(label);
+        });
+      }
+
+      function updateValueBadges() {
+        state.pins.forEach((pin) => {
+          const el = document.getElementById(`val-${pin}`);
+          if (!el) return;
+          const v = state.latestValues[pin];
+          if (v === null || v === undefined) {
+            el.textContent = "NaN";
+            el.style.color = "#c0392b";
+          } else {
+            el.textContent = v;
+            el.style.color = "#1d3d74";
+            // Flash highlight on update
+            el.classList.add("updated");
+            setTimeout(() => el.classList.remove("updated"), 120);
+          }
+        });
+      }
+
+      function trimBuffers() {
+        state.pins.forEach((pin) => {
+          const arr = state.buffers[pin] || [];
+          while (arr.length > state.maxPoints) arr.shift();
+        });
+      }
+
+      function parseCsvLine(line) {
+        const clean = line.trim();
+        if (!clean || !clean.startsWith("DATA")) return;
+
+        const parts = clean.split(",");
+        if (parts.length < 2) return;
+
+        // ── HEADER: DATA,RT(D15),RI(D4),...,aX1,aY1,...,gZ2
+        const isNamedHeader =
+          parts[1] && /^[A-Z]{2}\(/.test(parts[1].trim());
+
+        if (isNamedHeader) {
+          // Extract short labels: flex pins get (Dxx) stripped, IMU labels stay as-is
+          const labels = parts.slice(1).map((s) => {
+            const t = s.trim();
+            if (t.includes("(")) return t.split("(")[0];
+            return t;  // IMU labels like aX1, aY1 etc.
+          });
+          state.pins = labels;
+          clearSeries();
+          buildPinControls();
+          const flexCount = labels.filter(l => LABEL_MAP[l] && !IMU_CHANNELS.includes(l)).length;
+          const imuCount = labels.filter(l => IMU_CHANNELS.includes(l)).length;
+          infoEl.textContent = `Detected: ${flexCount} flex + ${imuCount} IMU channels`;
+          draw();
+          return;
+        }
+
+        // ── OLD FORMAT header: DATA,P36,P39,...
+        const isOldHeader =
+          parts[1] &&
+          (parts[1].startsWith("P") || parts[1].startsWith("p")) &&
+          !parts[1].includes(":");
+
+        if (isOldHeader) {
+          const parsedPins = parts
+            .slice(1)
+            .map((s) => Number(String(s).replace(/[^0-9]/g, "")))
+            .filter(Number.isFinite);
+          if (parsedPins.length > 0) {
+            state.pins = parsedPins;
+            clearSeries();
+            buildPinControls();
+            infoEl.textContent = `Pins detected: ${state.pins.join(", ")}`;
+            draw();
+          }
+          return;
+        }
+
+        // ── DATA ROW ──
+        // New mixed format: DATA,RT:117,RI:2279,...,LP:64,0.12,-0.95,0.08,...
+        // First 10 tokens are LABEL:VALUE (flex), remaining 12 are plain numbers (IMU)
+        const isNamedData = parts[1] && parts[1].includes(":");
+
+        let labels = [];
+        let values = [];
+        let currentNanFingers = [];
+
+        if (isNamedData) {
+          // Parse mixed format: named flex + plain IMU
+          const dataTokens = parts.slice(1);
+          let imuStartIdx = -1;
+
+          // Find where named (colon) tokens end and plain numbers begin
+          for (let i = 0; i < dataTokens.length; i++) {
+            if (!dataTokens[i].includes(":")) {
+              imuStartIdx = i;
+              break;
+            }
+          }
+
+          // Parse named flex tokens
+          const flexTokens = imuStartIdx === -1 ? dataTokens : dataTokens.slice(0, imuStartIdx);
+          flexTokens.forEach((token) => {
+            const colonIdx = token.indexOf(":");
+            if (colonIdx === -1) return;
+            const label = token.slice(0, colonIdx).trim();
+            const raw = token.slice(colonIdx + 1).trim().toLowerCase();
+            labels.push(label);
+
+            if (raw === "nan" || raw === "") {
+              const name = LABEL_MAP[label] || label;
+              currentNanFingers.push(name);
+              values.push(null);
+            } else {
+              const n = Number(raw);
+              if (!Number.isFinite(n)) {
+                const name = LABEL_MAP[label] || label;
+                currentNanFingers.push(name);
+                values.push(null);
+              } else {
+                values.push(n);
+              }
+            }
+          });
+
+          // Parse plain IMU tokens (aX1, aY1, aZ1, gX1, gY1, gZ1, aX2, ...)
+          if (imuStartIdx !== -1) {
+            const imuTokens = dataTokens.slice(imuStartIdx);
+            imuTokens.forEach((token, idx) => {
+              const imuLabel = IMU_CHANNELS[idx] || `IMU_${idx}`;
+              labels.push(imuLabel);
+
+              const raw = token.trim().toLowerCase();
+              if (raw === "nan" || raw === "") {
+                const name = LABEL_MAP[imuLabel] || imuLabel;
+                currentNanFingers.push(name);
+                values.push(null);
+              } else {
+                const n = Number(raw);
+                if (!Number.isFinite(n)) {
+                  const name = LABEL_MAP[imuLabel] || imuLabel;
+                  currentNanFingers.push(name);
+                  values.push(null);
+                } else {
+                  values.push(n);
+                }
+              }
+            });
+          }
+
+          // Auto-initialise pins from first data row if no header came yet
+          if (state.pins.length === 0 && labels.length > 0) {
+            state.pins = labels;
+            clearSeries();
+            buildPinControls();
+            infoEl.textContent = `Auto-detected: ${labels.length} channels`;
+          }
+        } else {
+          // Pure plain numeric format (fallback)
+          values = parts.slice(1).map((s, index) => {
+            const t = s.trim().toLowerCase();
+            if (t === "nan" || t === "") {
+              const name = DEFAULT_NAMES[index] || `Ch ${index + 1}`;
+              currentNanFingers.push(name);
+              return null;
+            }
+            const n = Number(t);
+            if (!Number.isFinite(n)) {
+              const name = DEFAULT_NAMES[index] || `Ch ${index + 1}`;
+              currentNanFingers.push(name);
+              return null;
+            }
+            return n;
+          });
+
+          if (state.pins.length === 0) {
+            state.pins = Array.from({ length: values.length }, (_, i) => i + 1);
+            clearSeries();
+            buildPinControls();
+            infoEl.textContent = `No header found. Using channels 1..${values.length}`;
+          }
+        }
+
+        const nanAlert = document.getElementById("nanWarning");
+        const nanList = document.getElementById("nanList");
+        if (currentNanFingers.length > 0) {
+          nanAlert.style.display = "flex";
+          nanList.textContent = currentNanFingers.join(", ");
+        } else {
+          nanAlert.style.display = "none";
+        }
+
+        const count = Math.min(state.pins.length, values.length);
+        for (let i = 0; i < count; i++) {
+          const pin = state.pins[i];
+          const v = values[i];
+          if (!state.buffers[pin]) state.buffers[pin] = [];
+          if (v !== null) state.buffers[pin].push(v);
+          state.latestValues[pin] = v;  // always store latest (even null = NaN)
+        }
+
+        trimBuffers();
+        updateValueBadges();
+        draw();
+      }
+
+      function drawGrid(w, h, left, top, right, bottom) {
+        const width = w - left - right;
+        const height = h - top - bottom;
+
+        ctx.strokeStyle = "#d7e4ff";
+        ctx.lineWidth = 1;
+
+        for (let i = 0; i <= 6; i++) {
+          const y = top + (height * i) / 6;
+          ctx.beginPath();
+          ctx.moveTo(left, y);
+          ctx.lineTo(left + width, y);
+          ctx.stroke();
+        }
+
+        for (let i = 0; i <= 8; i++) {
+          const x = left + (width * i) / 8;
+          ctx.beginPath();
+          ctx.moveTo(x, top);
+          ctx.lineTo(x, top + height);
+          ctx.stroke();
+        }
+      }
+
+      function draw() {
+        const w = canvas.clientWidth;
+        const h = canvas.clientHeight;
+        ctx.clearRect(0, 0, w, h);
+
+        const left = 56;
+        const right = 12;
+        const top = 14;
+        const bottom = 34;
+
+        drawGrid(w, h, left, top, right, bottom);
+
+        const width = w - left - right;
+        const height = h - top - bottom;
+
+        let ymin = Number.POSITIVE_INFINITY;
+        let ymax = Number.NEGATIVE_INFINITY;
+        let maxLen = 0;
+
+        state.pins.forEach((pin) => {
+          if (!state.visible[pin]) return;
+          const arr = state.buffers[pin] || [];
+          maxLen = Math.max(maxLen, arr.length);
+          for (const v of arr) {
+            if (v < ymin) ymin = v;
+            if (v > ymax) ymax = v;
+          }
+        });
+
+        if (!Number.isFinite(ymin) || !Number.isFinite(ymax)) {
+          ctx.fillStyle = "#5a6b8a";
+          ctx.font = "14px Segoe UI";
+          ctx.fillText("Waiting for data...", left + 10, top + 24);
+          return;
+        }
+
+        if (Math.abs(ymax - ymin) < 1e-6) {
+          ymax += 1;
+          ymin -= 1;
+        }
+
+        const pad = (ymax - ymin) * 0.08;
+        ymin -= pad;
+        ymax += pad;
+
+        ctx.fillStyle = "#334e80";
+        ctx.font = "12px Segoe UI";
+        ctx.fillText(ymax.toFixed(1), 8, top + 10);
+        ctx.fillText(ymin.toFixed(1), 8, h - bottom + 4);
+        ctx.fillText("Ohms", 8, top + height / 2);
+
+        const denominator = Math.max(1, maxLen - 1);
+
+        state.pins.forEach((pin, i) => {
+          if (!state.visible[pin]) return;
+          const arr = state.buffers[pin] || [];
+          if (arr.length < 2) return;
+
+          ctx.strokeStyle = colors[i % colors.length];
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+
+          for (let k = 0; k < arr.length; k++) {
+            const x = left + width * (k / denominator);
+            const yNorm = (arr[k] - ymin) / (ymax - ymin);
+            const y = top + height - yNorm * height;
+            if (k === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          }
+
+          ctx.stroke();
+        });
+
+        ctx.fillStyle = "#5a6b8a";
+        ctx.font = "11px Segoe UI";
+        ctx.fillText(`Samples: ${maxLen}`, left, h - 10);
+        ctx.fillText("Newest -> right side", w - 124, h - 10);
+      }
+
+      async function disconnectSerial() {
+        try {
+          if (state.reader) {
+            await state.reader.cancel();
+            state.reader.releaseLock();
+            state.reader = null;
+          }
+        } catch (e) {}
+
+        try {
+          if (state.port) {
+            await state.port.close();
+            state.port = null;
+          }
+        } catch (e) {}
+
+        setConnection("Disconnected", false);
+      }
+
+      async function connectSerial() {
+        if (!("serial" in navigator)) {
+          alert("Web Serial is not supported. Use Chrome or Edge desktop.");
+          return;
+        }
+
+        try {
+          state.port = await navigator.serial.requestPort();
+          await state.port.open({ baudRate: 115200 });
+
+          setConnection("Connected", true);
+          infoEl.textContent = "Reading serial stream...";
+
+          const textDecoder = new TextDecoderStream();
+          const readableClosed = state.port.readable.pipeTo(
+            textDecoder.writable,
+          );
+          state.reader = textDecoder.readable.getReader();
+
+          while (true) {
+            const { value, done } = await state.reader.read();
+            if (done) break;
+            if (!value) continue;
+
+            state.lineBuffer += value;
+            const lines = state.lineBuffer.split(/\r?\n/);
+            state.lineBuffer = lines.pop() || "";
+
+            for (const line of lines) {
+              parseCsvLine(line);
+            }
+          }
+
+          await readableClosed;
+        } catch (err) {
+          infoEl.textContent = `Serial error: ${err.message || err}`;
+        } finally {
+          await disconnectSerial();
+        }
+      }
+
+      document
+        .getElementById("connectBtn")
+        .addEventListener("click", connectSerial);
+      document
+        .getElementById("disconnectBtn")
+        .addEventListener("click", disconnectSerial);
+
+      document
+        .getElementById("windowPoints")
+        .addEventListener("change", (e) => {
+          state.maxPoints = Number(e.target.value);
+          trimBuffers();
+          draw();
+        });
+
+      document.getElementById("showAllBtn").addEventListener("click", () => {
+        pinList.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
+          cb.checked = true;
+          state.visible[cb.dataset.pin] = true;
+        });
+        draw();
+      });
+
+      document.getElementById("hideAllBtn").addEventListener("click", () => {
+        pinList.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
+          cb.checked = false;
+          state.visible[cb.dataset.pin] = false;
+        });
+        draw();
+      });
+
+      document.getElementById("invertBtn").addEventListener("click", () => {
+        pinList.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
+          cb.checked = !cb.checked;
+          state.visible[cb.dataset.pin] = cb.checked;
+        });
+        draw();
+      });
+
+      window.addEventListener("resize", resizeCanvas);
+      resizeCanvas();
+    </script>
+  </body>
+</html>
+
+
